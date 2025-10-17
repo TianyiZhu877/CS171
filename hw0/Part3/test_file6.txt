@@ -1,0 +1,14 @@
+bunny bunny.obj
+
+bunny
+s 3 2 1
+
+
+bunny
+r 0 0 1 1.5708
+
+
+bunny
+t 1 2 3
+
+
