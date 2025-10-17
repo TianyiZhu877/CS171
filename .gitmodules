@@ -1,0 +1,3 @@
+[submodule "hw0/Eigen"]
+	path = hw0/Eigen
+	url = https://github.com/TianyiZhu877/CS171_Eigen
