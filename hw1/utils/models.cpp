@@ -41,7 +41,7 @@ bool ObjModel::load_from_obj_file(const std::string& filename) {
             // If less than 3 indices, skip this face
             if (iss >> idx1 >> idx2 >> idx3) {
                 // Looks like the idxes of obj files are 1-based?
-                // idx1--; idx2--; idx3--;
+                idx1--; idx2--; idx3--;
                 
                 if (idx1 >= 0 && idx2 >= 0 && idx3 >= 0)
                     faces.emplace_back(Face{static_cast<std::size_t>(idx1), static_cast<std::size_t>(idx2), static_cast<std::size_t>(idx3)});

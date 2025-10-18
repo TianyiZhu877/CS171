@@ -16,7 +16,57 @@ struct Pixel {
     
     constexpr Pixel() : r(0), g(0), b(0) {}
     constexpr Pixel(T r, T g, T b) : r(r), g(g), b(b) {}
+
+    constexpr Pixel operator+(const Pixel& other) const {
+        return Pixel(r + other.r, g + other.g, b + other.b);
+    }
+    
+    constexpr Pixel operator-(const Pixel& other) const {
+        return Pixel(r - other.r, g - other.g, b - other.b);
+    }
+    
+    constexpr Pixel operator*(float scalar) const {
+        return Pixel(static_cast<T>(r * scalar), static_cast<T>(g * scalar), static_cast<T>(b * scalar));
+    }
+    
+    constexpr Pixel operator/(float scalar) const {
+        return Pixel(static_cast<T>(r / scalar), static_cast<T>(g / scalar), static_cast<T>(b / scalar));
+    }
+    
+    constexpr Pixel& operator+=(const Pixel& other) {
+        r += other.r;
+        g += other.g;
+        b += other.b;
+        return *this;
+    }
+    
+    constexpr Pixel& operator-=(const Pixel& other) {
+        r -= other.r;
+        g -= other.g;
+        b -= other.b;
+        return *this;
+    }
+    
+    constexpr Pixel& operator*=(float scalar) {
+        r = static_cast<T>(r * scalar);
+        g = static_cast<T>(g * scalar);
+        b = static_cast<T>(b * scalar);
+        return *this;
+    }
+    
+    constexpr Pixel& operator/=(float scalar) {
+        r = static_cast<T>(r / scalar);
+        g = static_cast<T>(g / scalar);
+        b = static_cast<T>(b / scalar);
+        return *this;
+    }
+    
+    // Friend function for scalar * Pixel (to support commutativity)
+    friend constexpr Pixel operator*(float scalar, const Pixel& p) {
+        return Pixel(static_cast<T>(scalar * p.r), static_cast<T>(scalar * p.g), static_cast<T>(scalar * p.b));
+    }
 };
+
 
 // PPMImage class that stores the image data, and support loading from PPM filem.
 // You can access the pixel data using image[y][x]

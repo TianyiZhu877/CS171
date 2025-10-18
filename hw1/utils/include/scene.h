@@ -197,7 +197,7 @@ public:
                             
         for (const auto& object : objects) {
             Eigen::Matrix3Xd ndc_points_3d = ::transformation::points_homo_to_points_3d(T_ndc_pt * object.points);
-            ::rendering::draw_object_edge(result, ndc_points_3d, object.faces());
+            ::rendering::draw_object_edges(result, ndc_points_3d, object.faces());
         }
         
         return result;
