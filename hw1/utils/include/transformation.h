@@ -66,7 +66,7 @@ inline Eigen::Matrix4d matrix_from_eular_angles(double rx, double ry, double rz)
     return T;
 }
 
-inline Eigen::Matrix3Xd points_homo_to_points_3d(Eigen::Matrix4Xd& matrix) {
+inline Eigen::Matrix3Xd points_homo_to_points_3d(const Eigen::Matrix4Xd& matrix) {
     Eigen::Matrix3Xd result(3, matrix.cols());
 
     result = matrix.topRows<3>().array().rowwise() / matrix.row(3).array();
@@ -74,7 +74,7 @@ inline Eigen::Matrix3Xd points_homo_to_points_3d(Eigen::Matrix4Xd& matrix) {
     return result;
 }
 
-inline Eigen::Matrix4Xd points_3d_to_points_homo(Eigen::Matrix3Xd& matrix) {
+inline Eigen::Matrix4Xd points_3d_to_points_homo(const Eigen::Matrix3Xd& matrix) {
     const int cols = static_cast<int>(matrix.cols());
     Eigen::Matrix4Xd result(4, cols);
     

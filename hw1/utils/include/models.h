@@ -7,6 +7,7 @@
 #include <string>
 #include <array>
 #include <variant>
+#include <memory>
 #include <Eigen/Dense>
 
 namespace models{
@@ -70,44 +71,22 @@ struct ObjModel {
 
 
 struct Model {
-    std::variant<ObjModel, std::reference_wrapper<ObjModel>> obj_file;
+    std::shared_ptr<ObjModel> obj_file;
     std::string name;
     Eigen::Matrix4Xd points;
 
-    Model() {}
-
-    Model(std::string model_name): name(model_name) {}
-
-    void initialize_obj_by_ref(ObjModel& obj_model) {
-        points = obj_model.export_vertexes_matrix_homo();
-        obj_file = std::ref(obj_model);
-    }
-
-    void initialize_obj_by_value(const ObjModel& obj_model) {
-        points = obj_model.export_vertexes_matrix_homo();
-        obj_file = obj_model;
-    }
-
-    void initialize_obj_by_value(ObjModel&& obj_model) {
-        points = obj_model.export_vertexes_matrix_homo();
-        obj_file = std::move(obj_model);
+    Model(const std::shared_ptr<ObjModel>& init_obj, std::string model_name = ""): 
+    obj_file(init_obj), name(model_name) {
+        points = obj_file->export_vertexes_matrix_homo();
     }
 
     // get faces from the obj file
-    FaceList& faces() {
-        if (std::holds_alternative<ObjModel>(obj_file)) {
-            return std::get<ObjModel>(obj_file).faces;
-        } else {
-            return std::get<std::reference_wrapper<ObjModel>>(obj_file).get().faces;
-        }
+    ObjModel::FaceList& faces() {
+        return obj_file->faces;
     }
 
-    const FaceList& faces() const {
-        if (std::holds_alternative<ObjModel>(obj_file)) {
-            return std::get<ObjModel>(obj_file).faces;
-        } else {
-            return std::get<std::reference_wrapper<ObjModel>>(obj_file).get().faces;
-        }
+    const ObjModel::FaceList& faces() const {
+        return obj_file->faces;
     }
 };
 
