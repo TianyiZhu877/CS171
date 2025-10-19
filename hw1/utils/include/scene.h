@@ -41,7 +41,7 @@ inline Eigen::Matrix4d parse_transformation_line(std::istringstream& line) {
 }
 
 
-
+// Class for a camera, contain all key params of a camera for rendering
 struct Camera {
     Eigen::Vector3d position;
     Eigen::Vector4d orientation;
@@ -52,6 +52,7 @@ struct Camera {
     double t;
     double b;
     
+    // Print camera info to screen for debug
     void serialize(std::ostream& os = std::cout) const {
         os << "position " << position.x() << " " << position.y() << " " << position.z() << "\n";
         os << "orientation " << orientation(0) << " " << orientation(1) << " " 
@@ -64,6 +65,7 @@ struct Camera {
         os << "bottom " << b << "\n";
     }
 
+    // Read a line to fill in camera
     void fill_field(std::istringstream& line) {
         std::string field_name;
         line >> field_name;
@@ -87,11 +89,13 @@ struct Camera {
         }
     }
 
+    // Get the transformation matrix of the camera
     Eigen::Matrix4d get_transformation() const {
         return ::transformation::matrix_from_translation_vector(position.x(), position.y(), position.z()) *
                ::transformation::matrix_from_rotation_vector(orientation(0), orientation(1), orientation(2), orientation(3));
     }
 
+    // Get the perspective projection matrix of the camera
     Eigen::Matrix4d get_perspective_projection_matrix() const {
         Eigen::Matrix4d proj = Eigen::Matrix4d::Zero();
         
@@ -107,7 +111,7 @@ struct Camera {
     }
 };
 
-
+// Stroing all objects in the scene, and provide interface to organize and render the scene
 class SceneFile {
 public:
     enum States {
@@ -120,7 +124,7 @@ public:
         GETTING_TRANSFORM
     };
 
-    // , bool apply_camera_transform = true
+    // Read the scene file and parse the camera and object information, parse the transformation matrix for each object
     SceneFile(const std::string& path) {
         state = States::CAMERA;
         current_label = "NONE";
@@ -190,6 +194,7 @@ public:
     //     }
     // }
 
+    // Rendering pipeline
     ::ppm_image::PPMImage<uint8_t> render(int width, int height) const {
         ::ppm_image::PPMImage<uint8_t> result(height, width, ::ppm_image::BLACK);
         Eigen::Matrix4d T_ndc_pt = camera.get_perspective_projection_matrix() 
