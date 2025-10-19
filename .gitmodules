@@ -4,3 +4,6 @@
 [submodule "hw1/Eigen"]
 	path = hw1/Eigen
 	url = https://github.com/TianyiZhu877/CS171_Eigen
+[submodule "hw2/Eigen"]
+	path = hw2/Eigen
+	url = https://github.com/TianyiZhu877/CS171_Eigen
