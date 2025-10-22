@@ -8,14 +8,19 @@
 #include <array>
 #include <variant>
 #include <memory>
+#include <optional>
 #include <Eigen/Dense>
+#include "ppm_image.h"
 
+// These model classes are only containers providing data storage, io and type conversions, transformation logic should be implemented elsewhere
 namespace models{
 
 // Object file class that stores the vertexes and faces, and support laoding from .obj file by calling load_from_obj_file()
 struct ObjModel {
 
-    using Face = std::array<std::size_t, 3>;
+    constexpr static size_t INVALID_SURFACE_NORMAL = -3;
+
+    using Face = std::array<std::size_t, 6>;
     using vertexList = std::vector<Eigen::Vector3d>;
     using FaceList = std::vector<Face>;
 
@@ -65,6 +70,7 @@ struct ObjModel {
     }
     
     vertexList vertexes;
+    vertexList normals;
     FaceList faces;
     std::string filename;
 };
@@ -73,12 +79,14 @@ struct ObjModel {
 struct Model {
     std::shared_ptr<ObjModel> obj_file;
     std::string name;
-    Eigen::Matrix4Xd points;
+    Eigen::Matrix4d transform;
+    ppm_image::Pixel<float> ambient;
+    ppm_image::Pixel<float> diffuse;
+    ppm_image::Pixel<float> specular;
+    float shininess;
 
-    Model(const std::shared_ptr<ObjModel>& init_obj, std::string model_name = ""): 
-    obj_file(init_obj), name(model_name) {
-        points = obj_file->export_vertexes_matrix_homo();
-    }
+    Model(const std::shared_ptr<ObjModel>& init_obj, Eigen::Matrix4d init_transform = Eigen::Matrix4d::Identity(), std::string model_name = ""): 
+    obj_file(init_obj), name(model_name), transform(init_transform) { }
 
     // get faces from the obj file
     ObjModel::FaceList& faces() {
@@ -87,6 +95,32 @@ struct Model {
 
     const ObjModel::FaceList& faces() const {
         return obj_file->faces;
+    }
+
+    ::Eigen::Matrix4Xd points_homo_transformed() const {
+        return transform * (obj_file->export_vertexes_matrix_homo());
+    }
+
+    bool try_parse_material_line(std::istringstream& line) {
+        std::string field_name;
+        line >> field_name;
+        if (field_name == "ambient") {
+            line >> ambient.r >> ambient.g >> ambient.b;
+            return true;
+        }
+        if (field_name == "diffuse") {
+            line >> diffuse.r >> diffuse.g >> diffuse.b;
+            return true;
+        }
+        if (field_name == "specular") {
+            line >> specular.r >> specular.g >> specular.b;
+            return true;
+        }
+        if (field_name == "shininess") {
+            line >> shininess;
+            return true;
+        }
+        return false;
     }
 };
 

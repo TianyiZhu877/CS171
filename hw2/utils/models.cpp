@@ -34,17 +34,49 @@ bool ObjModel::load_from_obj_file(const std::string& filename) {
             vertexes.emplace_back(x, y, z);
             // Any additional numbers after x,y,z are ignored
         }
+        else if (prefix == "vn") {
+            double x, y, z;
+            iss >> x >> y >> z;
+            normals.emplace_back(x, y, z);
+        }
         else if (prefix == "f") {
-            // Parse only the first 3 face indices, ignore any additional ones
-            int idx1, idx2, idx3;
+            // Parse face data - supports both "f v1 v2 v3" and "f v1//n1 v2//n2 v3//n3" formats
+            std::string token1, token2, token3;
             
-            // If less than 3 indices, skip this face
-            if (iss >> idx1 >> idx2 >> idx3) {
-                // Looks like the idxes of obj files are 1-based?
-                idx1--; idx2--; idx3--;
-                
-                if (idx1 >= 0 && idx2 >= 0 && idx3 >= 0)
-                    faces.emplace_back(Face{static_cast<std::size_t>(idx1), static_cast<std::size_t>(idx2), static_cast<std::size_t>(idx3)});
+            // If less than 3 tokens, skip this face
+            if (iss >> token1 >> token2 >> token3) {
+                Face new_face;
+                bool valid_face = true;
+
+                // Parse each token
+                std::string tokens[3] = {token1, token2, token3};
+                for (int i = 0; i < 3; i++) {
+                    size_t slash_pos = tokens[i].find("//");
+                    if (slash_pos != std::string::npos) {
+                        // Format: vertex//normal
+                        // has_normals = true;
+                        int v_idx = std::stoi(tokens[i].substr(0, slash_pos)) - 1;
+                        int vn_idx = std::stoi(tokens[i].substr(slash_pos + 2)) - 1;
+                        if (v_idx < 0 || vn_idx < 0) {
+                            valid_face = false;
+                            break;
+                        }
+                        new_face[i] = static_cast<size_t>(v_idx);
+                        new_face[i+3] = static_cast<size_t>(vn_idx);
+                    } else {
+                        // Simple format: just vertex index
+                        int v_idx = std::stoi(tokens[i]) - 1;
+                        if (v_idx < 0) {
+                            valid_face = false;
+                            break;
+                        }
+                        new_face[i] = static_cast<size_t>(v_idx);
+                        new_face[i+3] = static_cast<size_t>(INVALID_SURFACE_NORMAL);
+                    }
+                }
+                if (valid_face) {
+                    faces.emplace_back(std::move(new_face));
+                }
             }
         }
         // Lines not starting with 'v' or 'f' followed by space are ignored

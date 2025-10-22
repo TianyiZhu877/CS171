@@ -40,6 +40,32 @@ inline Eigen::Matrix4d parse_transformation_line(std::istringstream& line) {
     return parse_transformation_line(line, prefix, x, y, z, angle);
 }
 
+struct PointLight {
+    Eigen::Vector3d position;
+    ppm_image::Pixel<float> color;
+    double k;
+
+    static std::optional<PointLight> parse_point_light_line(std::istringstream& line) {
+        std::string field_name;
+        line >> field_name;
+        std::string seperation;
+        if (field_name == "light") {
+            PointLight light;
+            line >> light.position.x() >> light.position.y() >> light.position.z() >> seperation;
+            line >> light.color.r >> light.color.g >> light.color.b >> seperation;
+            line >> light.k;
+            return light;
+        }
+        return std::nullopt;
+    }
+
+    void serialize(std::ostream& os = std::cout) const {
+        os << "light " << position.x() << " " << position.y() << " " << position.z() << " , ";
+        os << color.r << " " << color.g << " " << color.b << " , " << k << std::endl;
+    }
+    
+};
+
 
 // Class for a camera, contain all key params of a camera for rendering
 struct Camera {
@@ -124,11 +150,17 @@ public:
         GETTING_TRANSFORM
     };
 
+    enum RenderMode {
+        GOURAUD,
+        PHONG,
+        EDGES
+    };
+
     // Read the scene file and parse the camera and object information, parse the transformation matrix for each object
-    SceneFile(const std::string& path) {
+    SceneFile(const std::string& path): current_model(nullptr) {
         state = States::CAMERA;
-        current_label = "NONE";
-        current_transform = Eigen::Matrix4d::Identity();
+        // current_label = "NONE";
+        // current_transform = Eigen::Matrix4d::Identity();
         scene_path = path;
 
         std::ifstream file(scene_path);
@@ -144,7 +176,14 @@ public:
             std::istringstream iss(line);
             // Handle each line according to different states
             if (state == States::CAMERA) {
-                camera.fill_field(iss);
+                std::optional<PointLight> light = PointLight::parse_point_light_line(iss);
+                if (light.has_value()) {
+                    // light.value().serialize();
+                    lights.push_back(std::move(light.value()));
+                } else {
+                    std::istringstream iss_camera(line);
+                    camera.fill_field(iss_camera);
+                }
             } else if (state == States::FILES) {
                 std::string label, obj_filename;
                 iss >> label >> obj_filename;
@@ -170,19 +209,27 @@ public:
                 object_files.emplace(label, std::make_pair(obj_data, 1));
             } else if (state == States::WAIT_SECTION) {
             } else if (state == States::NEW_SECTION) {
-                iss >> current_label;
+                std::string new_label;
+                iss >> new_label;
+                create_new_object_copy(new_label);
                 // std::cout << "New section: " << current_label << std::endl;
-                current_transform = Eigen::Matrix4d::Identity();
+                // current_transform = Eigen::Matrix4d::Identity();
             } else if (state == States::GETTING_TRANSFORM) {
-                Eigen::Matrix4d new_T = parse_transformation_line(iss);
-                current_transform = new_T * current_transform; 
+                if (!current_model.try_parse_material_line(iss)) {
+                    std::istringstream iss_transform(line);
+                    Eigen::Matrix4d new_T = parse_transformation_line(iss_transform);
+                    // std::cout << line << std::endl;
+                    // std::cout << "new_T: " << new_T << std::endl;
+                    // std::cout << "current_transform: " << current_transform << std::endl;
+                    current_model.transform = new_T * current_model.transform; 
+                }
             } else if (state == States::ONE_SECTION_END) {
-                do_transform();
+                objects.emplace_back(std::move(current_model));
             }
         }
     
         if (state == States::GETTING_TRANSFORM)
-            do_transform();
+            objects.emplace_back(std::move(current_model));
 
         // if (apply_camera_transform)
         //     transform_to_camera_frame();
@@ -195,14 +242,27 @@ public:
     // }
 
     // Rendering pipeline
-    ::ppm_image::PPMImage<uint8_t> render(int width, int height) const {
-        ::ppm_image::PPMImage<uint8_t> result(height, width, ::ppm_image::BLACK);
+    ppm_image::PPMImage<float> render(int width, int height, RenderMode mode = GOURAUD) const {
+
+        ppm_image::PPMImage<float> result(height, width, 1);
         Eigen::Matrix4d T_ndc_pt = camera.get_perspective_projection_matrix() 
                             * camera.get_transformation().inverse();
                             
         for (const auto& object : objects) {
-            Eigen::Matrix3Xd ndc_points_3d = ::transformation::points_homo_to_points_3d(T_ndc_pt * object.points);
-            ::rendering::draw_object_edges(result, ndc_points_3d, object.faces());
+            Eigen::Matrix3Xd ndc_points_3d = ::transformation::points_homo_to_points_3d(T_ndc_pt *  object.points_homo_transformed());
+            Eigen::VectorXi points_within_ndc_cube = rendering::within_ndc_cube_mask(ndc_points_3d);
+            // std::cout << "ndc_points_3d: " << ndc_points_3d << std::endl;
+            // std::cout << object.transform << std::endl;
+            // Render based on mode
+            if (mode == EDGES) {
+                ::rendering::draw_object_edges(result, ndc_points_3d, points_within_ndc_cube, object.faces());
+            } else if (mode == GOURAUD) {
+                
+                // ::rendering::draw_object_edges(result, ndc_points_3d, object.faces());
+            } else if (mode == PHONG) {
+                
+                // ::rendering::draw_object_edges(result, ndc_points_3d, object.faces());
+            }
         }
         
         return result;
@@ -211,12 +271,14 @@ public:
     Camera camera;
     std::vector<models::Model> objects;
     std::string scene_path;
+    std::vector<PointLight> lights;
 
 private:
     States state;
     std::unordered_map<std::string, std::pair<std::shared_ptr<models::ObjModel>, int>> object_files;
-    std::string current_label;
-    Eigen::Matrix4d current_transform;
+    // std::string current_label;
+    // Eigen::Matrix4d current_transform;
+    models::Model current_model;
 
     void state_transition(std::string& line) {
         if (state == States::CAMERA) {
@@ -239,23 +301,24 @@ private:
         }
     }
 
-    void do_transform() {
-        auto it = object_files.find(current_label);
+    void create_new_object_copy(const std::string& label) {
+        current_model = models::Model(nullptr);
+        auto it = object_files.find(label);
         if (it == object_files.end()) {
-            std::cerr << "Error: Label \"" << current_label << "\" not found" << std::endl;
+            std::cerr << "Error: Label \"" << label << "\" not found" << std::endl;
             return;
         }
     
         int& count = it->second.second;
-        std::string new_label = current_label+"_copy"+std::to_string(count);
-        models::Model new_object(it->second.first, new_label);
-        new_object.points = current_transform * new_object.points;
-        objects.emplace_back(std::move(new_object));
+        std::string new_label = label+"_copy"+std::to_string(count);
+        current_model.obj_file = it->second.first;
+        current_model.name = new_label;
+        // std::cout << "new_object.transform: " << new_object.transform << std::endl;
+        // std::cout << "current transform: " << current_transform << std::endl;
+        // new_object.points = current_transform * new_object.points;;
         
         // std::cout << "new copy: " << new_label << " added" << std::endl;
         count++;
-        current_transform = Eigen::Matrix4d::Identity();
-        current_label = "NONE";
     }
 };
 
