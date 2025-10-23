@@ -6,6 +6,7 @@
 #include <Eigen/Dense>
 #include "ppm_image.h"
 #include "models.h"
+#include "shader.h"
 
 // Forward declarations
 namespace scene {
@@ -13,9 +14,30 @@ namespace scene {
     struct Camera;
 }
 
+
 namespace rendering {
 
     constexpr bool ENABLE_ANTIALIASING = false;
+
+    
+    inline double barycentric_f(float xi, float xj, float yi, float yj, float x, float y) {
+        return (yi-yj)*x + (xj-xi)*y + xi*yj - xj*yi;
+    }
+
+    inline std::tuple<double, double, double> compute_alpha_beta_gamma(double xa, double ya, double xb, double yb, double xc, double yc, double x, double y) {
+        // double total_area = 0.5 * std::abs((xb - xa) * (yc - ya) - (xc - xa) * (yb - ya)); 
+        // double area_pca = 0.5 * std::abs((x - xa) * (yc - ya) - (xc - xa) * (y - ya));
+        // double beta = area_pca / total_area;
+        // double area_pab = 0.5 * std::abs((xb - xa) * (y - ya) - (x - xa) * (yb - ya));
+        // double gamma = area_pab / total_area;
+
+        double alpha = barycentric_f(xb, xc, yb, yc, x, y) / barycentric_f(xb, xc, yb, yc, xa, ya);
+        double beta = barycentric_f(xa, xc, ya, yc, x, y) / barycentric_f(xa, xc, ya, yc, xb, yb);
+        double gamma = 1.0 - beta - alpha;
+        
+        return std::make_tuple(alpha, beta, gamma);
+    }
+
 
     // Convert NDC coordinates to screen coordinates
     // NDC range: [-1, 1], Screen range: [0, width/height]
@@ -43,7 +65,8 @@ namespace rendering {
         return mask;
     }
 
-    ppm_image::Pixel<float> lighting(const Eigen::Vector3d& P, const Eigen::Vector3d& normal, const models::Model& model, const std::vector<::scene::PointLight>& lights, const Eigen::Vector3d& eye_pos, float k);
+    ppm_image::Pixel<float> lighting(const Eigen::Vector3d& P, const Eigen::Vector3d& normal, const models::Model& model,
+                        const std::vector<::scene::PointLight>& lights, const Eigen::Vector3d& eye_pos);
 
 
     /* Draw the edges of the object on the image.
@@ -55,6 +78,8 @@ namespace rendering {
     void draw_object_edges(ppm_image::PPMImage<float>& image, const models::Model& model, 
         const scene::Camera& camera, ppm_image::Pixel<float> color = ppm_image::colors_f::WHITE);
 
+    void render_object(ppm_image::PPMImage<float>& image, const models::Model& model, 
+            const scene::Camera& camera, shader::Shader& shader, Eigen::MatrixXd& z_buffer);
     // FillFunc should have the signature void(int x, int y, float alpha)
     template<typename FillFunc>
     void bresenham_draw_line(int x0, int y0, int x1, int y1, const FillFunc& fill) {
@@ -112,6 +137,10 @@ namespace rendering {
     void draw_object_dots(::ppm_image::PPMImage<uint8_t>& image, const Eigen::Matrix3Xd& ndc_points);
 
 } // namespace rendering
+
+// Include full definitions for implementation
+#include "scene.h"
+#include "shader.h"
 
 #endif // RENDERING_H
 

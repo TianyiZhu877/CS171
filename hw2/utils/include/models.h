@@ -54,6 +54,16 @@ struct ObjModel {
         return M;
     }
 
+    Eigen::Matrix3Xd export_normals_matrix(){
+        const int num_cols = static_cast<int>(normals.size());
+        Eigen::Matrix3Xd M(3, num_cols);
+        for (int i = 0; i < num_cols; ++i) {
+            M(0, i) = normals[i].x();
+            M(1, i) = normals[i].y();
+            M(2, i) = normals[i].z();
+        }
+        return M;
+    }
     
     void load_vertexes_from_homo_matrix(Eigen::Matrix4Xd& matrix) {
         vertexes.clear();
@@ -97,8 +107,12 @@ struct Model {
         return obj_file->faces;
     }
 
-    ::Eigen::Matrix4Xd points_homo_transformed() const {
+    Eigen::Matrix4Xd points_homo_transformed() const {
         return transform * (obj_file->export_vertexes_matrix_homo());
+    }
+
+    Eigen::Matrix3Xd normals_transformed() const {
+        return transform.block<3,3>(0,0) * (obj_file->export_normals_matrix());
     }
 
     bool try_parse_material_line(std::istringstream& line) {

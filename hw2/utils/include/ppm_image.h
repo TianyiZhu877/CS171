@@ -61,6 +61,12 @@ struct Pixel {
         b = static_cast<T>(b / scalar);
         return *this;
     }
+
+    void clamp(T color_scale) {
+        r = std::clamp(r, 0.0f, color_scale);
+        g = std::clamp(g, 0.0f, color_scale);
+        b = std::clamp(b, 0.0f, color_scale);
+    }
     
     // Friend function for scalar * Pixel (to support commutativity)
     friend constexpr Pixel operator*(float scalar, const Pixel& p) {

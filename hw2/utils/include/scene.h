@@ -245,7 +245,8 @@ public:
     ppm_image::PPMImage<float> render(int width, int height, RenderMode mode = GOURAUD) const {
 
         ppm_image::PPMImage<float> result(height, width, 1);
-                            
+        Eigen::MatrixXd z_buffer = Eigen::MatrixXd::Ones(height, width);
+        
         for (const auto& object : objects) {
             // std::cout << "ndc_points_3d: " << ndc_points_3d << std::endl;
             // std::cout << object.transform << std::endl;
@@ -253,9 +254,11 @@ public:
             if (mode == EDGES) {
                 rendering::draw_object_edges(result, object, camera);
             } else if (mode == GOURAUD) {
-
+                shader::Gouraud gouraud_shader(const_cast<models::Model&>(object), 
+                            const_cast<std::vector<PointLight>&>(lights), camera.position);
+                rendering::render_object(result, object, camera, gouraud_shader, z_buffer);
             } else if (mode == PHONG) {
-                
+
             }
         }
         

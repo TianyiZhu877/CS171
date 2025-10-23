@@ -1,14 +1,15 @@
+#include <Eigen/Dense>
+#include <cmath>
+#include <algorithm>
 #include "rendering.h"
 #include "ppm_image.h"
 #include "models.h"
 #include "scene.h"
-#include <Eigen/Dense>
-#include <cmath>
-#include <algorithm>
+#include "shader.h"
 
 namespace rendering {
 
-ppm_image::Pixel<float> lighting(const Eigen::Vector3d& P, const Eigen::Vector3d& normal, const models::Model& model, const std::vector<scene::PointLight>& lights, const Eigen::Vector3d& eye_pos, float k) {
+ppm_image::Pixel<float> lighting(const Eigen::Vector3d& P, const Eigen::Vector3d& normal, const models::Model& model, const std::vector<scene::PointLight>& lights, const Eigen::Vector3d& eye_pos) {
     
     ppm_image::Pixel<float> result = model.ambient;
     
@@ -23,14 +24,15 @@ ppm_image::Pixel<float> lighting(const Eigen::Vector3d& P, const Eigen::Vector3d
         
         // Distance attenuation
         double distance = L_dir.norm();
-        double attenuation = 1.0 / (1.0 + k * distance * distance);
+        // double attenuation = 1.0;
+        double attenuation = 1.0 / (1.0 + light.k * distance * distance);
         
         // Diffuse component
         ppm_image::Pixel<float> L_diffuse = light.color * std::max(0.0, normal.dot(L_dir)) * attenuation;
         diffuse_sum += L_diffuse;
 
         Eigen::Vector3d half_vector = (e_dir + L_dir).normalized();
-        ppm_image::Pixel<float> L_specular = light.color * std::max(0.0, normal.dot(half_vector)) * attenuation;
+        ppm_image::Pixel<float> L_specular = light.color * std::pow(std::max(0.0, normal.dot(half_vector)), model.shininess) * attenuation;
         specular_sum += L_specular;
     }
     
@@ -45,6 +47,54 @@ ppm_image::Pixel<float> lighting(const Eigen::Vector3d& P, const Eigen::Vector3d
 
 
 
+void render_object(ppm_image::PPMImage<float>& image, const models::Model& model, const scene::Camera& camera, shader::Shader& shader, Eigen::MatrixXd& z_buffer) {
+    // Draw vertices for now
+    Eigen::Matrix4d T_ndc_pt = camera.get_perspective_projection_matrix() * camera.get_transformation().inverse();
+    Eigen::Matrix4Xd vertexes_homo = model.points_homo_transformed();
+    Eigen::Matrix3Xd vertexes = transformation::points_homo_to_points_3d(vertexes_homo);
+    Eigen::Matrix3Xd normals = model.normals_transformed();
+    Eigen::Matrix3Xd ndc_points = transformation::points_homo_to_points_3d(T_ndc_pt *  vertexes_homo);
+    Eigen::VectorXi points_within_ndc_cube = rendering::compute_within_ndc_cube_mask(ndc_points);
+    
+    for (const auto& face: model.faces()) {
+        if (points_within_ndc_cube(face[0]) > 0 || points_within_ndc_cube(face[1]) > 0 || points_within_ndc_cube(face[2]) > 0) {
+            Eigen::Vector3d ndc_a = ndc_points.col(face[0]);
+            Eigen::Vector3d ndc_b = ndc_points.col(face[1]);
+            Eigen::Vector3d ndc_c = ndc_points.col(face[2]);
+            Eigen::Vector3d cross = (ndc_b - ndc_a).cross(ndc_c - ndc_a);
+            if (cross.z() > 0) {
+                shader.new_triangle(vertexes.col(face[0]), vertexes.col(face[1]), vertexes.col(face[2]),
+                                    normals.col(face[3]), normals.col(face[4]), normals.col(face[5]));
+
+                auto [xa, ya] = ndc_to_screen(ndc_a, image.w(), image.h());
+                auto [xb, yb] = ndc_to_screen(ndc_b, image.w(), image.h());
+                auto [xc, yc] = ndc_to_screen(ndc_c, image.w(), image.h());
+
+                int xmin = std::max(0, std::min(xa, std::min(xb, xc)));
+                int xmax = std::min(static_cast<int>(image.w()), std::max(xa, std::max(xb, xc)));
+                int ymin = std::max(0, std::min(ya, std::min(yb, yc)));
+                int ymax = std::min(static_cast<int>(image.h()), std::max(ya, std::max(yb, yc)));
+
+                for (int x = xmin; x <= xmax; x++) {
+                    for (int y = ymin; y <= ymax; y++) {
+                        auto [alpha, beta, gamma] = compute_alpha_beta_gamma(xa, ya, xb, yb, xc, yc, x, y);
+                        if (alpha >= 0 && beta >= 0 && gamma >= 0 && alpha <= 1 && beta <= 1 && gamma <= 1) {
+                            
+                            Eigen::Vector3d ndc = alpha * ndc_a + beta * ndc_b + gamma * ndc_c;
+                            if (within_ndc_cube(ndc) && ndc.z() < z_buffer(y, x)) {
+                                z_buffer(y, x) = ndc.z();
+                                ppm_image::Pixel<float> color = shader.compute_color(alpha, beta, gamma);
+                                color.clamp(1.0);
+                                image[y][x] = color;
+                            }
+                        }
+                    }
+                }
+            }
+              
+        }
+    }
+}
 
 void draw_object_edges(ppm_image::PPMImage<float>& image, const models::Model& model, 
     const scene::Camera& camera, ppm_image::Pixel<float> color) {
