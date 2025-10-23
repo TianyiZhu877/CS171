@@ -1,16 +1,60 @@
 #include "rendering.h"
 #include "ppm_image.h"
 #include "models.h"
+#include "scene.h"
 #include <Eigen/Dense>
 #include <cmath>
 #include <algorithm>
 
 namespace rendering {
 
-void draw_object_edges(::ppm_image::PPMImage<float>& image, const Eigen::Matrix3Xd& ndc_points, Eigen::VectorXi points_within_ndc_cube,
-                       const models::ObjModel::FaceList& faces, ::ppm_image::Pixel<float> color) {
+ppm_image::Pixel<float> lighting(const Eigen::Vector3d& P, const Eigen::Vector3d& normal, const models::Model& model, const std::vector<scene::PointLight>& lights, const Eigen::Vector3d& eye_pos, float k) {
+    
+    ppm_image::Pixel<float> result = model.ambient;
+    
+    
+    ppm_image::Pixel<float> diffuse_sum(0,0,0);
+    ppm_image::Pixel<float> specular_sum(0,0,0);
+    Eigen::Vector3d e_dir = (eye_pos - P).normalized();
+
+    
+    for (const auto& light : lights) {
+        Eigen::Vector3d L_dir = (light.position - P).normalized();
+        
+        // Distance attenuation
+        double distance = L_dir.norm();
+        double attenuation = 1.0 / (1.0 + k * distance * distance);
+        
+        // Diffuse component
+        ppm_image::Pixel<float> L_diffuse = light.color * std::max(0.0, normal.dot(L_dir)) * attenuation;
+        diffuse_sum += L_diffuse;
+
+        Eigen::Vector3d half_vector = (e_dir + L_dir).normalized();
+        ppm_image::Pixel<float> L_specular = light.color * std::max(0.0, normal.dot(half_vector)) * attenuation;
+        specular_sum += L_specular;
+    }
+    
+    const ppm_image::Pixel<float>& Cs = model.specular;
+    const ppm_image::Pixel<float>& Cd = model.diffuse;
+    result.r = std::max(result.r + diffuse_sum.r*Cd.r + specular_sum.r*Cs.r, 0.0f);
+    result.g = std::max(result.g + diffuse_sum.g*Cd.g + specular_sum.g*Cs.g, 0.0f);
+    result.b = std::max(result.b + diffuse_sum.b*Cd.b + specular_sum.b*Cs.b, 0.0f);
+    
+    return result;
+}
+
+
+
+
+void draw_object_edges(ppm_image::PPMImage<float>& image, const models::Model& model, 
+    const scene::Camera& camera, ppm_image::Pixel<float> color) {
     // Draw vertices for now
-    for (const auto& face: faces) {
+    
+    Eigen::Matrix4d T_ndc_pt = camera.get_perspective_projection_matrix() * camera.get_transformation().inverse();
+    Eigen::Matrix3Xd ndc_points = transformation::points_homo_to_points_3d(T_ndc_pt *  model.points_homo_transformed());
+    Eigen::VectorXi points_within_ndc_cube = rendering::compute_within_ndc_cube_mask(ndc_points);
+
+    for (const auto& face: model.faces()) {
 
         for (int i=0; i<3; i++) {
             int start_point_idx = face[i];

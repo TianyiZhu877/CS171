@@ -7,6 +7,12 @@
 #include "ppm_image.h"
 #include "models.h"
 
+// Forward declarations
+namespace scene {
+    struct PointLight;
+    struct Camera;
+}
+
 namespace rendering {
 
     constexpr bool ENABLE_ANTIALIASING = false;
@@ -27,7 +33,7 @@ namespace rendering {
     }
 
     // Check which points are within the NDC cube, returns a mask (1 = inside, 0 = outside)
-    inline Eigen::VectorXi within_ndc_cube_mask(const Eigen::Matrix3Xd& ndc_points) {
+    inline Eigen::VectorXi compute_within_ndc_cube_mask(const Eigen::Matrix3Xd& ndc_points) {
         Eigen::VectorXi mask(ndc_points.cols());
         
         for (int i = 0; i < ndc_points.cols(); ++i) {
@@ -37,6 +43,8 @@ namespace rendering {
         return mask;
     }
 
+    ppm_image::Pixel<float> lighting(const Eigen::Vector3d& P, const Eigen::Vector3d& normal, const models::Model& model, const std::vector<::scene::PointLight>& lights, const Eigen::Vector3d& eye_pos, float k);
+
 
     /* Draw the edges of the object on the image.
         @param image: the image to draw on, pass as a reference to incrementally draws on it
@@ -44,8 +52,8 @@ namespace rendering {
         @param faces: the surfaces of the object
         @param color: the color of the edges
     */
-    void draw_object_edges(::ppm_image::PPMImage<float>& image, const Eigen::Matrix3Xd& ndc_points, Eigen::VectorXi points_within_ndc_cube,
-        const models::ObjModel::FaceList& faces, ::ppm_image::Pixel<float> color = ppm_image::colors_f::WHITE);
+    void draw_object_edges(ppm_image::PPMImage<float>& image, const models::Model& model, 
+        const scene::Camera& camera, ppm_image::Pixel<float> color = ppm_image::colors_f::WHITE);
 
     // FillFunc should have the signature void(int x, int y, float alpha)
     template<typename FillFunc>

@@ -245,23 +245,17 @@ public:
     ppm_image::PPMImage<float> render(int width, int height, RenderMode mode = GOURAUD) const {
 
         ppm_image::PPMImage<float> result(height, width, 1);
-        Eigen::Matrix4d T_ndc_pt = camera.get_perspective_projection_matrix() 
-                            * camera.get_transformation().inverse();
                             
         for (const auto& object : objects) {
-            Eigen::Matrix3Xd ndc_points_3d = ::transformation::points_homo_to_points_3d(T_ndc_pt *  object.points_homo_transformed());
-            Eigen::VectorXi points_within_ndc_cube = rendering::within_ndc_cube_mask(ndc_points_3d);
             // std::cout << "ndc_points_3d: " << ndc_points_3d << std::endl;
             // std::cout << object.transform << std::endl;
             // Render based on mode
             if (mode == EDGES) {
-                ::rendering::draw_object_edges(result, ndc_points_3d, points_within_ndc_cube, object.faces());
+                rendering::draw_object_edges(result, object, camera);
             } else if (mode == GOURAUD) {
-                
-                // ::rendering::draw_object_edges(result, ndc_points_3d, object.faces());
+
             } else if (mode == PHONG) {
                 
-                // ::rendering::draw_object_edges(result, ndc_points_3d, object.faces());
             }
         }
         
