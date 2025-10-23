@@ -11,19 +11,19 @@ namespace rendering {
 
 ppm_image::Pixel<float> lighting(const Eigen::Vector3d& P, const Eigen::Vector3d& normal, const models::Model& model, const std::vector<scene::PointLight>& lights, const Eigen::Vector3d& eye_pos) {
     
-    ppm_image::Pixel<float> result = model.ambient;
     
     
-    ppm_image::Pixel<float> diffuse_sum(0,0,0);
-    ppm_image::Pixel<float> specular_sum(0,0,0);
+    ppm_image::Pixel<float> diffuse_sum(0.0f, 0.0f, 0.0f);
+    ppm_image::Pixel<float> specular_sum(0.0f, 0.0f, 0.0f);
     Eigen::Vector3d e_dir = (eye_pos - P).normalized();
 
     
     for (const auto& light : lights) {
-        Eigen::Vector3d L_dir = (light.position - P).normalized();
+        Eigen::Vector3d L_vec = light.position - P;
+        double distance = L_vec.norm();
+        Eigen::Vector3d L_dir = L_vec.normalized();
         
         // Distance attenuation
-        double distance = L_dir.norm();
         // double attenuation = 1.0;
         double attenuation = 1.0 / (1.0 + light.k * distance * distance);
         
@@ -31,16 +31,20 @@ ppm_image::Pixel<float> lighting(const Eigen::Vector3d& P, const Eigen::Vector3d
         ppm_image::Pixel<float> L_diffuse = light.color * std::max(0.0, normal.dot(L_dir)) * attenuation;
         diffuse_sum += L_diffuse;
 
+        // Specular component
         Eigen::Vector3d half_vector = (e_dir + L_dir).normalized();
         ppm_image::Pixel<float> L_specular = light.color * std::pow(std::max(0.0, normal.dot(half_vector)), model.shininess) * attenuation;
         specular_sum += L_specular;
     }
     
+    ppm_image::Pixel<float> result;
+    const ppm_image::Pixel<float>& Ca = model.ambient;
     const ppm_image::Pixel<float>& Cs = model.specular;
     const ppm_image::Pixel<float>& Cd = model.diffuse;
-    result.r = std::max(result.r + diffuse_sum.r*Cd.r + specular_sum.r*Cs.r, 0.0f);
-    result.g = std::max(result.g + diffuse_sum.g*Cd.g + specular_sum.g*Cs.g, 0.0f);
-    result.b = std::max(result.b + diffuse_sum.b*Cd.b + specular_sum.b*Cs.b, 0.0f);
+    result.r = Ca.r + diffuse_sum.r*Cd.r + specular_sum.r*Cs.r;
+    result.g = Ca.g + diffuse_sum.g*Cd.g + specular_sum.g*Cs.g;
+    result.b = Ca.b + diffuse_sum.b*Cd.b + specular_sum.b*Cs.b;
+    result.clamp(1.0);
     
     return result;
 }
@@ -57,7 +61,7 @@ void render_object(ppm_image::PPMImage<float>& image, const models::Model& model
     Eigen::VectorXi points_within_ndc_cube = rendering::compute_within_ndc_cube_mask(ndc_points);
     
     for (const auto& face: model.faces()) {
-        if (points_within_ndc_cube(face[0]) > 0 || points_within_ndc_cube(face[1]) > 0 || points_within_ndc_cube(face[2]) > 0) {
+        // if (points_within_ndc_cube(face[0]) > 0 && points_within_ndc_cube(face[1]) > 0 && points_within_ndc_cube(face[2]) > 0) {
             Eigen::Vector3d ndc_a = ndc_points.col(face[0]);
             Eigen::Vector3d ndc_b = ndc_points.col(face[1]);
             Eigen::Vector3d ndc_c = ndc_points.col(face[2]);
@@ -92,7 +96,7 @@ void render_object(ppm_image::PPMImage<float>& image, const models::Model& model
                 }
             }
               
-        }
+        // }
     }
 }
 

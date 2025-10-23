@@ -12,6 +12,7 @@
 #include "transformation.h"
 #include "models.h"
 #include "rendering.h"
+#include "shader.h"
 
 namespace scene {
 

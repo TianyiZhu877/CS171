@@ -138,9 +138,7 @@ namespace rendering {
 
 } // namespace rendering
 
-// Include full definitions for implementation
-#include "scene.h"
-#include "shader.h"
+
 
 #endif // RENDERING_H
 

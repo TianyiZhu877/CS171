@@ -112,7 +112,14 @@ struct Model {
     }
 
     Eigen::Matrix3Xd normals_transformed() const {
-        return transform.block<3,3>(0,0) * (obj_file->export_normals_matrix());
+        Eigen::Matrix3Xd transformed_normals = transform.block<3,3>(0,0) * (obj_file->export_normals_matrix());
+        
+        // Normalize each normal vector
+        for (int i = 0; i < transformed_normals.cols(); ++i) {
+            transformed_normals.col(i).normalize();
+        }
+        
+        return transformed_normals;
     }
 
     bool try_parse_material_line(std::istringstream& line) {
