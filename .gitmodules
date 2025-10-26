@@ -7,3 +7,6 @@
 [submodule "hw2/Eigen"]
 	path = hw2/Eigen
 	url = https://github.com/TianyiZhu877/CS171_Eigen
+[submodule "hw3/Eigen"]
+	path = hw3/Eigen
+	url = https://github.com/TianyiZhu877/CS171_Eigen

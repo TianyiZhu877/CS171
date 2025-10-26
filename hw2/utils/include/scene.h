@@ -259,7 +259,9 @@ public:
                             const_cast<std::vector<PointLight>&>(lights), camera.position);
                 rendering::render_object(result, object, camera, gouraud_shader, z_buffer);
             } else if (mode == PHONG) {
-
+                shader::Phong phong_shader(const_cast<models::Model&>(object), 
+                            const_cast<std::vector<PointLight>&>(lights), camera.position);
+                rendering::render_object(result, object, camera, phong_shader, z_buffer);
             }
         }
         

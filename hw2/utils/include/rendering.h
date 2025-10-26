@@ -78,8 +78,10 @@ namespace rendering {
     void draw_object_edges(ppm_image::PPMImage<float>& image, const models::Model& model, 
         const scene::Camera& camera, ppm_image::Pixel<float> color = ppm_image::colors_f::WHITE);
 
+    // Render the object on the image using the shader (phong or gouraud)
     void render_object(ppm_image::PPMImage<float>& image, const models::Model& model, 
             const scene::Camera& camera, shader::Shader& shader, Eigen::MatrixXd& z_buffer);
+            
     // FillFunc should have the signature void(int x, int y, float alpha)
     template<typename FillFunc>
     void bresenham_draw_line(int x0, int y0, int x1, int y1, const FillFunc& fill) {
