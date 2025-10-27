@@ -9,8 +9,8 @@
 #include <variant>
 #include <memory>
 #include <optional>
+#include <GL/glew.h>
 #include <Eigen/Dense>
-#include "ppm_image.h"
 
 // These model classes are only containers providing data storage, io and type conversions, transformation logic should be implemented elsewhere
 namespace models{
@@ -21,7 +21,8 @@ struct ObjModel {
     constexpr static size_t INVALID_SURFACE_NORMAL = -3;
 
     using Face = std::array<std::size_t, 6>;
-    using vertexList = std::vector<Eigen::Vector3d>;
+    using FaceOpenGL = std::array<GLuint, 3>;
+    using vertexList = std::vector<Eigen::Vector3f>;
     using FaceList = std::vector<Face>;
 
     void clear() {
@@ -82,7 +83,9 @@ struct ObjModel {
     vertexList vertexes;
     vertexList normals;
     FaceList faces;
+    std::vector<FaceOpenGL> faces_opengl;
     std::string filename;
+    bool drawElement_compatible;
 };
 
 
@@ -90,9 +93,9 @@ struct Model {
     std::shared_ptr<ObjModel> obj_file;
     std::string name;
     Eigen::Matrix4d transform;
-    ppm_image::Pixel<float> ambient;
-    ppm_image::Pixel<float> diffuse;
-    ppm_image::Pixel<float> specular;
+    Eigen::Vector3f ambient;
+    Eigen::Vector3f diffuse;
+    Eigen::Vector3f specular;
     float shininess;
 
     Model(const std::shared_ptr<ObjModel>& init_obj, Eigen::Matrix4d init_transform = Eigen::Matrix4d::Identity(), std::string model_name = ""): 
@@ -126,15 +129,15 @@ struct Model {
         std::string field_name;
         line >> field_name;
         if (field_name == "ambient") {
-            line >> ambient.r >> ambient.g >> ambient.b;
+            line >> ambient.x() >> ambient.y() >> ambient.z();
             return true;
         }
         if (field_name == "diffuse") {
-            line >> diffuse.r >> diffuse.g >> diffuse.b;
+            line >> diffuse.x() >> diffuse.y() >> diffuse.z();
             return true;
         }
         if (field_name == "specular") {
-            line >> specular.r >> specular.g >> specular.b;
+            line >> specular.x() >> specular.y() >> specular.z();
             return true;
         }
         if (field_name == "shininess") {

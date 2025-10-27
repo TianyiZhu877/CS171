@@ -11,8 +11,6 @@
 
 #include "transformation.h"
 #include "models.h"
-#include "rendering.h"
-#include "shader.h"
 
 namespace scene {
 
@@ -42,9 +40,9 @@ inline Eigen::Matrix4d parse_transformation_line(std::istringstream& line) {
 }
 
 struct PointLight {
-    Eigen::Vector3d position;
-    ppm_image::Pixel<float> color;
-    double k;
+    Eigen::Vector3f position;
+    Eigen::Vector3f color;
+    float k;
 
     static std::optional<PointLight> parse_point_light_line(std::istringstream& line) {
         std::string field_name;
@@ -53,7 +51,7 @@ struct PointLight {
         if (field_name == "light") {
             PointLight light;
             line >> light.position.x() >> light.position.y() >> light.position.z() >> seperation;
-            line >> light.color.r >> light.color.g >> light.color.b >> seperation;
+            line >> light.color.x() >> light.color.y() >> light.color.z() >> seperation;
             line >> light.k;
             return light;
         }
@@ -62,7 +60,7 @@ struct PointLight {
 
     void serialize(std::ostream& os = std::cout) const {
         os << "light " << position.x() << " " << position.y() << " " << position.z() << " , ";
-        os << color.r << " " << color.g << " " << color.b << " , " << k << std::endl;
+        os << color.x() << " " << color.y() << " " << color.z() << " , " << k << std::endl;
     }
     
 };
@@ -70,14 +68,14 @@ struct PointLight {
 
 // Class for a camera, contain all key params of a camera for rendering
 struct Camera {
-    Eigen::Vector3d position;
-    Eigen::Vector4d orientation;
-    double n;
-    double f;
-    double l;
-    double r;
-    double t;
-    double b;
+    Eigen::Vector3f position;
+    Eigen::Vector4f orientation;
+    float n;
+    float f;
+    float l;
+    float r;
+    float t;
+    float b;
     
     // Print camera info to screen for debug
     void serialize(std::ostream& os = std::cout) const {
@@ -241,32 +239,6 @@ public:
     //         object.points = camera.get_transformation().inverse() * object.points;
     //     }
     // }
-
-    // Rendering pipeline
-    ppm_image::PPMImage<float> render_cpu(int width, int height, RenderMode mode = GOURAUD) const {
-
-        ppm_image::PPMImage<float> result(height, width, 1);
-        Eigen::MatrixXd z_buffer = Eigen::MatrixXd::Ones(height, width);
-        
-        for (const auto& object : objects) {
-            // std::cout << "ndc_points_3d: " << ndc_points_3d << std::endl;
-            // std::cout << object.transform << std::endl;
-            // Render based on mode
-            if (mode == EDGES) {
-                cpu::rendering::draw_object_edges(result, object, camera);
-            } else if (mode == GOURAUD) {
-                cpu::shader::Gouraud gouraud_shader(const_cast<models::Model&>(object), 
-                            const_cast<std::vector<PointLight>&>(lights), camera.position);
-                cpu::rendering::render_object(result, object, camera, gouraud_shader, z_buffer);
-            } else if (mode == PHONG) {
-                cpu::shader::Phong phong_shader(const_cast<models::Model&>(object), 
-                            const_cast<std::vector<PointLight>&>(lights), camera.position);
-                cpu::rendering::render_object(result, object, camera, phong_shader, z_buffer);
-            }
-        }
-        
-        return result;
-    }
 
     Camera camera;
     std::vector<models::Model> objects;

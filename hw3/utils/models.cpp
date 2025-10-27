@@ -11,11 +11,13 @@ bool ObjModel::load_from_obj_file(const std::string& filename) {
     this->filename = filename;
     vertexes.clear();
     faces.clear();
+    drawElement_compatible = true;
     
     std::ifstream file(filename);
     if (!file.is_open()) {
         return false;
     }
+
     
     std::string line;
     while (std::getline(file, line)) {
@@ -49,6 +51,7 @@ bool ObjModel::load_from_obj_file(const std::string& filename) {
                 bool valid_face = true;
 
                 // Parse each token
+
                 std::string tokens[3] = {token1, token2, token3};
                 for (int i = 0; i < 3; i++) {
                     size_t slash_pos = tokens[i].find("//");
@@ -63,6 +66,10 @@ bool ObjModel::load_from_obj_file(const std::string& filename) {
                         }
                         new_face[i] = static_cast<size_t>(v_idx);
                         new_face[i+3] = static_cast<size_t>(vn_idx);
+
+                        if (v_idx != vn_idx) 
+                            drawElement_compatible = false;
+                        
                     } else {
                         // Simple format: just vertex index
                         int v_idx = std::stoi(tokens[i]) - 1;
@@ -76,10 +83,28 @@ bool ObjModel::load_from_obj_file(const std::string& filename) {
                 }
                 if (valid_face) {
                     faces.emplace_back(std::move(new_face));
+
+                    if (drawElement_compatible) {
+                        FaceOpenGL new_face_opengl{static_cast<GLuint>(new_face[0]), static_cast<GLuint>(new_face[1]), static_cast<GLuint>(new_face[2])};
+                        faces_opengl.emplace_back(std::move(new_face_opengl));
+                    }
                 }
             }
         }
         // Lines not starting with 'v' or 'f' followed by space are ignored
+    }
+
+    if (!drawElement_compatible) {
+        vertexList new_vertexes;
+        vertexList new_normals;
+        for (const auto& face : faces) {
+            for (int i = 0; i < 3; i++) {
+                new_vertexes.emplace_back(vertexes[face[i]]);
+                new_normals.emplace_back(normals[face[i+3]]);
+            }
+        }
+        vertexes = std::move(new_vertexes);
+        normals = std::move(new_normals);
     }
     
     return true;
