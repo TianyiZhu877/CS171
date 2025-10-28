@@ -6,17 +6,65 @@
 #include "include/models.h"
 #include "iostream"
 #include <iomanip>
+#include "include/transformation.h"
 
 // forward declaration
 namespace opengl_utils {
     void print_model_matrices();
-} // namespace opengl_utils
+} 
 
 
 namespace opengl_handlers {
     scene::SceneFile* scene;
+    static Eigen::Vector4d last_rotation_quat = Eigen::Vector4d(0, 0, 0, 1);  // Identity quaternion (x,y,z,w)
+    static Eigen::Vector4d current_rotation_quat = Eigen::Vector4d(0, 0, 0, 1);  // Identity quaternion (x,y,z,w)
+    static int p_start_x, p_start_y;
+    static bool is_pressed = false;
+
 
 namespace helpers {
+
+
+
+void camera_transform() {
+    // First, apply the the initial camera transformation
+    const auto& camera = scene->camera;
+    glLoadIdentity();
+    glRotatef(-camera.orientation(3) * 180.0 / M_PI, camera.orientation(0), camera.orientation(1), camera.orientation(2));
+    glTranslatef(-camera.position.x(), -camera.position.y(), -camera.position.z());
+
+    // Then, apply the current rotation quaternion
+    Eigen::Vector4d combined_quat = ::transformation::quaternion_multiply(current_rotation_quat, last_rotation_quat);
+    Eigen::Matrix4d rotation_matrix = ::transformation::get_martix_4x4_from_quaternion(combined_quat);
+    glMultMatrixd(rotation_matrix.data());
+}
+
+Eigen::Vector4d compute_rotation_quaternion(int x, int y, int p_start_x, int p_start_y) {
+    // Get window dimensions
+    int width = glutGet(GLUT_WINDOW_WIDTH);
+    int height = glutGet(GLUT_WINDOW_HEIGHT);
+    
+    Eigen::Vector3d current_ndc = transformation::screen_to_ndc_unit_sphere(x, y, width, height);
+    Eigen::Vector3d start_ndc = transformation::screen_to_ndc_unit_sphere(p_start_x, p_start_y, width, height);
+    
+    // Compute rotation quaternion from two unit vectors
+    Eigen::Vector3d rotation_axis = start_ndc.cross(current_ndc);
+    double rotation_angle = std::acos(std::min(1.0, start_ndc.dot(current_ndc)));
+    
+    rotation_axis.normalize();
+    
+    double half_angle = rotation_angle * 0.5;
+    double s = std::sin(half_angle);
+    double c = std::cos(half_angle);
+    
+    Eigen::Vector4d quaternion;
+    quaternion(0) = rotation_axis.x() * s;  // x
+    quaternion(1) = rotation_axis.y() * s;  // y  
+    quaternion(2) = rotation_axis.z() * s;  // z
+    quaternion(3) = c;                     // w (scalar)
+    
+    return quaternion;
+}
 
 void set_lights() {
     int light_id = GL_LIGHT0;
@@ -29,7 +77,7 @@ void set_lights() {
 void draw_objects() {
     for (const auto& model : scene->objects) {
         glPushMatrix(); {
-            // Don't know why but openGL supposingly use column-major order for matrices,
+            // Don't know why but openGL supposingly use post-multiplication for matrices,
             // but doing this transpose generates the incorrect result?!
             // Eigen::Matrix4d transposed_transform = model.transform.transpose();
             glMultMatrixd(model.transform.data());
@@ -70,7 +118,9 @@ void draw_objects() {
             // glDrawArrays(GL_LINE_STRIP, 0, model.obj_file->vertexes.size());
             // glDrawElements(GL_TRIANGLES, 3, GL_UNSIGNED_INT, model.obj_file->faces_opengl.data());
             
+            // Draw the model using the appropriate method
             if (model.obj_file->drawElement_compatible) {
+            // If the vertexes and normal indices are the same for each face, DrawElements could be used
                 // std::cout << "Drawing model: " << model.name << " with DrawElements" << std::endl;
                 glDrawElements(GL_TRIANGLES, 3*model.obj_file->faces_opengl.size(), GL_UNSIGNED_INT, model.obj_file->faces_opengl.data());
             } else {
@@ -89,6 +139,7 @@ void display(void) {
     
     helpers::set_lights();
     glMatrixMode(GL_MODELVIEW);
+    helpers::camera_transform();
     helpers::draw_objects();
     
     glutSwapBuffers();
@@ -103,4 +154,32 @@ void window_resize(int width, int height) {
     glutPostRedisplay();
 }
 
+
+void mouse_pressed(int button, int state, int x, int y) {
+    if(button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
+        p_start_x = x;
+        p_start_y = y;
+        is_pressed = true;
+        // std::cout << "Mouse pressed at: " << x << ", " << y << std::endl;
+    }
+    else if(button == GLUT_LEFT_BUTTON && state == GLUT_UP) {
+        is_pressed = false;
+        last_rotation_quat = ::transformation::quaternion_multiply(current_rotation_quat, last_rotation_quat);
+        current_rotation_quat = Eigen::Vector4d(0, 0, 0, 1);  // Reset to identity quaternion
+    }
 }
+
+
+void mouse_motion(int x, int y) {
+    if (is_pressed) {
+        // std::cout << "Mouse dragging at: " << x << ", " << y << std::endl;
+        current_rotation_quat = helpers::compute_rotation_quaternion(x, y, p_start_x, p_start_y);
+        glutPostRedisplay();  
+    }
+}
+
+
+
+} // namespace opengl_handlers
+
+

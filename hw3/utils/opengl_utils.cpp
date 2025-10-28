@@ -37,15 +37,17 @@ void init_lights(scene::SceneFile& scene) {
         glLightf(light_id, GL_QUADRATIC_ATTENUATION, light.k);
         light_id++;
     }
-    std::cout << "number of lights: " << light_id - GL_LIGHT0 << std::endl;
+    // std::cout << "number of lights: " << light_id - GL_LIGHT0 << std::endl;
 }
 
 void init_camera(scene::SceneFile& scene) {
+    // Set the camear projection 
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
     const auto& camera = scene.camera;
     glFrustum(camera.l, camera.r, camera.b, camera.t, camera.n, camera.f);
 
+    // Set the camera transformation
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
     glRotatef(-camera.orientation(3) * 180.0 / M_PI, camera.orientation(0), camera.orientation(1), camera.orientation(2));
@@ -56,8 +58,11 @@ void start_scene_rendering(scene::SceneFile& scene) {
     init_camera(scene);
     init_lights(scene);
 
+    // Set the GLUT callback functions
     glutDisplayFunc(opengl_handlers::display);
     glutReshapeFunc(opengl_handlers::window_resize);
+    glutMouseFunc(opengl_handlers::mouse_pressed);
+    glutMotionFunc(opengl_handlers::mouse_motion);
     glutMainLoop();
 }
 
