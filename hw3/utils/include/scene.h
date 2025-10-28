@@ -53,6 +53,7 @@ struct PointLight {
             line >> light.position.x() >> light.position.y() >> light.position.z() >> seperation;
             line >> light.color.x() >> light.color.y() >> light.color.z() >> seperation;
             line >> light.k;
+            light.serialize();
             return light;
         }
         return std::nullopt;

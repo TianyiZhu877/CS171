@@ -14,7 +14,6 @@ namespace opengl_handlers {
     namespace helpers {
         void set_lights();
         void draw_objects();
-        void print_model_matrices();
     }
     
     // Main GLUT callback functions

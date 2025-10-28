@@ -9,6 +9,7 @@ namespace opengl_utils {
     void init_lights(scene::SceneFile& scene);
     void init_camera(scene::SceneFile& scene);
     void start_scene_rendering(scene::SceneFile& scene = (*opengl_handlers::scene));
+    void print_model_matrices();
 }
 
 #endif // OPENGL_UTILS_H

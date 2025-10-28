@@ -7,29 +7,16 @@
 #include "iostream"
 #include <iomanip>
 
+// forward declaration
+namespace opengl_utils {
+    void print_model_matrices();
+} // namespace opengl_utils
+
+
 namespace opengl_handlers {
     scene::SceneFile* scene;
 
 namespace helpers {
-
-void print_model_matrices() {
-    GLfloat modelview[16];
-    GLfloat projection[16];
-    
-    glGetFloatv(GL_MODELVIEW_MATRIX, modelview);
-    glGetFloatv(GL_PROJECTION_MATRIX, projection);
-    
-    std::cout << "\nModelView Matrix:" << std::endl;
-    for (int i = 0; i < 4; i++) {
-        std::cout << "  ";
-        for (int j = 0; j < 4; j++) {
-            std::cout << std::fixed << std::setw(10) << std::setprecision(4) << modelview[i + j * 4];
-        }
-        std::cout << std::endl;
-    }
-
-    std::cout << "================================\n" << std::endl;
-}
 
 void set_lights() {
     int light_id = GL_LIGHT0;
@@ -42,17 +29,27 @@ void set_lights() {
 void draw_objects() {
     for (const auto& model : scene->objects) {
         glPushMatrix(); {
+            // Don't know why but openGL supposingly use column-major order for matrices,
+            // but doing this transpose generates the incorrect result?!
             // Eigen::Matrix4d transposed_transform = model.transform.transpose();
-            // glMultMatrixd(transposed_transform.data());
+            glMultMatrixd(model.transform.data());
 
-            glLoadIdentity();
+            // glLoadIdentity();
             // Eigen::Matrix4d hardcoded_matrix;
-            // hardcoded_matrix << 1.0, 0.0, 0.0, 0.4,
-            //                     0.0, 1.0, 0.0, -0.9,
-            //                     0.0, 0.0, 1.0, -4.0,
-            //                     0.0, 0.0, 0.0, 1.0;
-            // Eigen::Matrix4d transposed_hardcoded = hardcoded_matrix.transpose();
-            // glMultMatrixd(transposed_hardcoded.data());
+            // // hardcoded_matrix << 1.0, 0.0, 0.0, 0.4,
+            // //                     0.0, 1.0, 0.0, -0.9,
+            // //                     0.0, 0.0, 1.0, -4.0,
+            // //                     0.0, 0.0, 0.0, 1.0;
+            // hardcoded_matrix <<  1.0222 , -0.3592 , 0.7184 , 0.9330, 
+            //                   0.3592 , 1.2444 , 0.1111 , -0.8319,
+            //                   -0.7184 , 0.1111 , 1.0778 , -5.5361,
+            //                   0.0000 , 0.0000 , 0.0000 , 1.0000;
+            // // hardcoded_matrix <<  0.853588 ,  0.146412 , 0.499951 , 0,
+            // //                    0.146412 , 0.853588 , -0.499951 , 0,
+            // //                    -0.499951 , 0.499951 , 0.707176 , -5,
+            // //                    0 , 0 , 0 , 1;
+            // // hardcoded_matrix = hardcoded_matrix.transpose();
+            // glMultMatrixd(hardcoded_matrix.data());
             
             // Set material properties
             glMaterialfv(GL_FRONT, GL_AMBIENT, model.ambient.data());
@@ -60,10 +57,10 @@ void draw_objects() {
             glMaterialfv(GL_FRONT, GL_SPECULAR, model.specular.data());
             glMaterialf(GL_FRONT, GL_SHININESS, model.shininess);
             
-            std::cout << "Model: " << model.name << std::endl;
-            std::cout << "Model Transform Matrix (camera frame):" << std::endl;
-            std::cout << scene->camera.get_transformation().inverse()*(model.transform) << std::endl;
-            print_model_matrices();
+            // std::cout << "Model: " << model.name << std::endl;
+            // std::cout << "Model Transform Matrix (camera frame):" << std::endl;
+            // std::cout << scene->camera.get_transformation().inverse()*(model.transform) << std::endl;
+            // opengl_utils::print_model_matrices();
             
             // Set vertex and normal pointers
             glVertexPointer(3, GL_FLOAT, sizeof(Eigen::Vector3f), model.obj_file->vertexes.data());
@@ -74,9 +71,10 @@ void draw_objects() {
             // glDrawElements(GL_TRIANGLES, 3, GL_UNSIGNED_INT, model.obj_file->faces_opengl.data());
             
             if (model.obj_file->drawElement_compatible) {
-                glDrawElements(GL_TRIANGLES, 3, GL_UNSIGNED_INT, model.obj_file->faces_opengl.data());
+                // std::cout << "Drawing model: " << model.name << " with DrawElements" << std::endl;
+                glDrawElements(GL_TRIANGLES, 3*model.obj_file->faces_opengl.size(), GL_UNSIGNED_INT, model.obj_file->faces_opengl.data());
             } else {
-                std::cout << "Drawing model: " << model.name << " with drawArrays" << std::endl;
+                // std::cout << "Drawing model: " << model.name << " with drawArrays" << std::endl;
                 glDrawArrays(GL_TRIANGLES, 0, model.obj_file->vertexes.size());
             }
 

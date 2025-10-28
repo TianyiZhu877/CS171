@@ -30,12 +30,14 @@ void init_lights(scene::SceneFile& scene) {
     glEnable(GL_LIGHTING);
     int light_id = GL_LIGHT0;
     for (const auto& light : scene.lights) {
+        glEnable(light_id);
         glLightfv(light_id, GL_AMBIENT, light.color.data());
         glLightfv(light_id, GL_DIFFUSE, light.color.data());
         glLightfv(light_id, GL_SPECULAR, light.color.data());
-        glLightf(light_id, GL_QUADRATIC_ATTENUATION, static_cast<float>(light.k));
+        glLightf(light_id, GL_QUADRATIC_ATTENUATION, light.k);
         light_id++;
     }
+    std::cout << "number of lights: " << light_id - GL_LIGHT0 << std::endl;
 }
 
 void init_camera(scene::SceneFile& scene) {
@@ -59,5 +61,24 @@ void start_scene_rendering(scene::SceneFile& scene) {
     glutMainLoop();
 }
 
+
+void print_model_matrices() {
+    GLfloat modelview[16];
+    GLfloat projection[16];
+    
+    glGetFloatv(GL_MODELVIEW_MATRIX, modelview);
+    glGetFloatv(GL_PROJECTION_MATRIX, projection);
+    
+    std::cout << "ModelView Matrix:" << std::endl;
+    for (int i = 0; i < 4; i++) {
+        std::cout << "  ";
+        for (int j = 0; j < 4; j++) {
+            std::cout << std::fixed << std::setw(10) << std::setprecision(4) << modelview[i + j * 4];
+        }
+        std::cout << std::endl;
+    }
+
+    std::cout << "================================\n\n" << std::endl;
+}
 
 } // namespace opengl_utils
