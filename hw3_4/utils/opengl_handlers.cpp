@@ -1,11 +1,17 @@
+#include <GL/gl.h>
+#include <GL/glu.h>
 #include <GL/glew.h>
 #include <GL/glut.h>
 #include "Eigen/Dense"
+#include <iostream>
+#include <iomanip>
+#include <fstream>
+#include <string>
+#include <vector>
+#include <sstream>
 
 #include "include/scene.h"
 #include "include/models.h"
-#include "iostream"
-#include <iomanip>
 #include "include/transformation.h"
 
 // forward declaration
@@ -16,6 +22,7 @@ namespace opengl_utils {
 
 namespace opengl_handlers {
     scene::SceneFile* scene;
+    int shader_mode = 0;
     static Eigen::Vector4d last_rotation_quat = Eigen::Vector4d(0, 0, 0, 1);  // Identity quaternion (x,y,z,w)
     static Eigen::Vector4d current_rotation_quat = Eigen::Vector4d(0, 0, 0, 1);  // Identity quaternion (x,y,z,w)
     static int p_start_x, p_start_y;
@@ -24,7 +31,10 @@ namespace opengl_handlers {
 
 namespace helpers {
 
-
+static const char* vertProgFileName = "shaders/vertex.glsl";
+static const char* fragProgFileName = "shaders/fragment.glsl";
+static GLuint shaderProgram = 0;
+static bool shadersLoaded = false;
 
 void camera_transform() {
     // First, apply the the initial camera transformation
@@ -71,6 +81,52 @@ void set_lights() {
     for (const auto& light : scene->lights) {
         glLightfv(light_id, GL_POSITION, light.position.data());
         light_id++;
+    }
+}
+
+void set_light_uniforms() {
+    // Pass lighting information to shader as uniforms
+    // This assumes your shader has uniforms like:
+    // - numLights (int)
+    // - lightPositions[] (vec3 array)
+    // - lightColors[] (vec3 array)
+    // - lightAttenuations[] (float array)
+    
+    if (shaderProgram == 0) return;
+    
+    int numLights = scene->lights.size();
+    
+    // Set number of lights
+    GLint numLightsLoc = glGetUniformLocation(shaderProgram, "numLights");
+    if (numLightsLoc != -1) {
+        glUniform1i(numLightsLoc, numLights);
+    }
+    
+    // Set light positions, colors, and attenuations
+    // Assuming max 8 lights (common limit), you can adjust based on your shader
+    for (size_t i = 0; i < numLights && i < 8; i++) {
+        const auto& light = scene->lights[i];
+        
+        // Light position
+        std::string posName = "lightPositions[" + std::to_string(i) + "]";
+        GLint posLoc = glGetUniformLocation(shaderProgram, posName.c_str());
+        if (posLoc != -1) {
+            glUniform3fv(posLoc, 1, light.position.data());
+        }
+        
+        // Light color
+        std::string colorName = "lightColors[" + std::to_string(i) + "]";
+        GLint colorLoc = glGetUniformLocation(shaderProgram, colorName.c_str());
+        if (colorLoc != -1) {
+            glUniform3fv(colorLoc, 1, light.color.data());
+        }
+        
+        // Light attenuation (k)
+        std::string attenName = "lightAttenuations[" + std::to_string(i) + "]";
+        GLint attenLoc = glGetUniformLocation(shaderProgram, attenName.c_str());
+        if (attenLoc != -1) {
+            glUniform1f(attenLoc, light.k);
+        }
     }
 }
 
@@ -132,16 +188,161 @@ void draw_objects() {
         } glPopMatrix();
     }
 }
+
+
+static void readShaders() {
+    if (shadersLoaded) {
+        return; // Already loaded
+    }
+    
+    std::string vertProgramSource, fragProgramSource;
+    
+    // Read vertex shader
+    std::ifstream vertProgFile(vertProgFileName);
+    if (!vertProgFile.is_open()) {
+        std::cerr << "Error opening vertex shader program: " << vertProgFileName << std::endl;
+        return;
+    }
+    
+    std::stringstream vertBuffer;
+    vertBuffer << vertProgFile.rdbuf();
+    vertProgramSource = vertBuffer.str();
+    vertProgFile.close();
+    
+    // Read fragment shader
+    std::ifstream fragProgFile(fragProgFileName);
+    if (!fragProgFile.is_open()) {
+        std::cerr << "Error opening fragment shader program: " << fragProgFileName << std::endl;
+        return;
+    }
+    
+    std::stringstream fragBuffer;
+    fragBuffer << fragProgFile.rdbuf();
+    fragProgramSource = fragBuffer.str();
+    fragProgFile.close();
+    
+    const char* vertShaderSource = vertProgramSource.c_str();
+    const char* fragShaderSource = fragProgramSource.c_str();
+ 
+    // Initialize shaders
+    GLuint vertShader, fragShader;
+ 
+    shaderProgram = glCreateProgram();
+    if (shaderProgram == 0) {
+        std::cerr << "Error creating shader program" << std::endl;
+        return;
+    }
+ 
+    // Compile vertex shader
+    vertShader = glCreateShader(GL_VERTEX_SHADER);
+    glShaderSource(vertShader, 1, &vertShaderSource, NULL);
+    glCompileShader(vertShader);
+     
+    GLint isCompiled = 0;
+    glGetShaderiv(vertShader, GL_COMPILE_STATUS, &isCompiled);
+    if(isCompiled == GL_FALSE) {
+       GLint maxLength = 0;
+       glGetShaderiv(vertShader, GL_INFO_LOG_LENGTH, &maxLength);
+     
+       std::vector<GLchar> errorLog(maxLength);
+       glGetShaderInfoLog(vertShader, maxLength, &maxLength, &errorLog[0]);
+     
+       std::cerr << "Vertex shader compilation error:" << std::endl;
+       for (int i = 0; i < errorLog.size(); i++)
+          std::cerr << errorLog[i];
+       std::cerr << std::endl;
+       glDeleteShader(vertShader);
+       glDeleteProgram(shaderProgram);
+       shaderProgram = 0;
+       return;
+    }
+ 
+    // Compile fragment shader
+    fragShader = glCreateShader(GL_FRAGMENT_SHADER);
+    glShaderSource(fragShader, 1, &fragShaderSource, NULL);
+    glCompileShader(fragShader);
+ 
+    isCompiled = 0;
+    glGetShaderiv(fragShader, GL_COMPILE_STATUS, &isCompiled);
+    if(isCompiled == GL_FALSE) {
+       GLint maxLength = 0;
+       glGetShaderiv(fragShader, GL_INFO_LOG_LENGTH, &maxLength);
+     
+       std::vector<GLchar> errorLog(maxLength);
+       glGetShaderInfoLog(fragShader, maxLength, &maxLength, &errorLog[0]);
+     
+       std::cerr << "Fragment shader compilation error:" << std::endl;
+       for (int i = 0; i < errorLog.size(); i++)
+          std::cerr << errorLog[i];
+       std::cerr << std::endl;
+       glDeleteShader(vertShader);
+       glDeleteShader(fragShader);
+       glDeleteProgram(shaderProgram);
+       shaderProgram = 0;
+       return;
+    }
+ 
+    // Link program
+    glAttachShader(shaderProgram, vertShader);
+    glAttachShader(shaderProgram, fragShader);
+    glLinkProgram(shaderProgram);
+    
+    GLint isLinked = 0;
+    glGetProgramiv(shaderProgram, GL_LINK_STATUS, &isLinked);
+    if (isLinked == GL_FALSE) {
+        GLint maxLength = 0;
+        glGetProgramiv(shaderProgram, GL_INFO_LOG_LENGTH, &maxLength);
+        std::vector<GLchar> errorLog(maxLength);
+        glGetProgramInfoLog(shaderProgram, maxLength, &maxLength, &errorLog[0]);
+        std::cerr << "Shader program linking error:" << std::endl;
+        for (int i = 0; i < errorLog.size(); i++)
+            std::cerr << errorLog[i];
+        std::cerr << std::endl;
+        glDeleteShader(vertShader);
+        glDeleteShader(fragShader);
+        glDeleteProgram(shaderProgram);
+        shaderProgram = 0;
+        return;
+    }
+    
+    // Clean up shader objects (they're now attached to the program)
+    glDeleteShader(vertShader);
+    glDeleteShader(fragShader);
+    
+    shadersLoaded = true;
+    std::cerr << "Shaders loaded successfully" << std::endl;
+ }
+
+
 } // namespace helpers
 
 void display(void) {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     
+    // Load shaders if mode is 1 and not already loaded
+    if (shader_mode == 1 && !shadersLoaded) {
+        helpers::readShaders();
+    }
+    
     glMatrixMode(GL_MODELVIEW);
     helpers::camera_transform();
-    helpers::draw_objects();
-    helpers::set_lights();
     
+    // Use shader program if mode is 1, otherwise use default pipeline
+    if (shader_mode == 1 && shaderProgram != 0) {
+        glUseProgram(shaderProgram);
+    } else {
+        glUseProgram(0); // Use default pipeline
+    }
+    
+    helpers::draw_objects();
+    
+    // Use shader program if mode is 1, otherwise use default pipeline
+    if (shader_mode == 1 && shaderProgram != 0) {
+        helpers::set_light_uniforms(); // Pass lights to shader as uniforms
+    } else {
+        helpers::set_lights(); // Use fixed-function lighting
+    }
+
     glutSwapBuffers();
 }
 

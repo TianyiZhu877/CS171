@@ -9,12 +9,14 @@ namespace scene {
 namespace opengl_handlers {
     // Global scene pointer, needs to be manually point to the scene object to be rendered
     extern scene::SceneFile* scene;
+    extern int shader_mode;
     
     // Helper functions
     namespace helpers {
         void camera_transform();
         Eigen::Matrix4d compute_rotation_quaternion(int x, int y, int p_start_x, int p_start_y);
         void set_lights();
+        void set_light_uniforms();
         void draw_objects();
     }
     

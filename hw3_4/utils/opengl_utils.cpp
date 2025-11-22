@@ -15,6 +15,12 @@ void init_window(int argc, char* argv[], int xres, int yres, std::string window_
     glutInitWindowPosition(0, 0);
     glutCreateWindow(window_name.c_str());
     
+    // Initialize GLEW for shader support (must be called after creating OpenGL context)
+    GLenum err = glewInit();
+    if (err != GLEW_OK) {
+        std::cerr << "Error initializing GLEW: " << glewGetErrorString(err) << std::endl;
+    }
+    
     glShadeModel(GL_SMOOTH);
     glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
