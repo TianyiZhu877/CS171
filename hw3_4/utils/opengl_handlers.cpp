@@ -137,10 +137,10 @@ void draw_objects() {
 void display(void) {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     
-    helpers::set_lights();
     glMatrixMode(GL_MODELVIEW);
     helpers::camera_transform();
     helpers::draw_objects();
+    helpers::set_lights();
     
     glutSwapBuffers();
 }
