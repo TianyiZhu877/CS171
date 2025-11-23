@@ -1,7 +1,6 @@
-#include <GL/gl.h>
-#include <GL/glu.h>
-#include <GL/glew.h>
-#include <GL/glut.h>
+#include <GL/glew.h>     // OpenGL extension functions (MUST come before gl.h)
+#include <GL/gl.h>       // Core OpenGL functions (glLoadIdentity, glRotatef, glMaterialfv, etc.)
+#include <GL/glut.h>     // GLUT functions (glutGet, glutSwapBuffers, glutPostRedisplay, etc.)
 #include "Eigen/Dense"
 #include <iostream>
 #include <iomanip>
@@ -31,8 +30,8 @@ namespace opengl_handlers {
 
 namespace helpers {
 
-static const char* vertProgFileName = "shaders/vertex.glsl";
-static const char* fragProgFileName = "shaders/fragment.glsl";
+static const char* vertProgFileName = "../shaders/vertex.glsl";
+static const char* fragProgFileName = "../shaders/fragment.glsl";
 static GLuint shaderProgram = 0;
 static bool shadersLoaded = false;
 
@@ -84,34 +83,74 @@ void set_lights() {
     }
 }
 
-void set_light_uniforms() {
-    // Pass lighting information to shader as uniforms
-    // This assumes your shader has uniforms like:
-    // - numLights (int)
-    // - lightPositions[] (vec3 array)
-    // - lightColors[] (vec3 array)
-    // - lightAttenuations[] (float array)
-    
+void set_material_uniforms(const models::Model& model) {
+    // Pass material properties to shader
     if (shaderProgram == 0) return;
     
-    int numLights = scene->lights.size();
+    GLint ambientLoc = glGetUniformLocation(shaderProgram, "materialAmbient");
+    if (ambientLoc != -1) {
+        glUniform3fv(ambientLoc, 1, model.ambient.data());
+    }
     
+    GLint diffuseLoc = glGetUniformLocation(shaderProgram, "materialDiffuse");
+    if (diffuseLoc != -1) {
+        glUniform3fv(diffuseLoc, 1, model.diffuse.data());
+    }
+    
+    GLint specularLoc = glGetUniformLocation(shaderProgram, "materialSpecular");
+    if (specularLoc != -1) {
+        glUniform3fv(specularLoc, 1, model.specular.data());
+    }
+    
+    GLint shininessLoc = glGetUniformLocation(shaderProgram, "materialShininess");
+    if (shininessLoc != -1) {
+        glUniform1f(shininessLoc, model.shininess);
+    }
+}
+
+void set_light_uniforms() {
+    // Pass lighting information to shader as uniforms
+    if (shaderProgram == 0) return;
+    
+    // Pass camera position to shader (in camera space, eye is at origin)
+    GLint eyePosLoc = glGetUniformLocation(shaderProgram, "eyePosition");
+    if (eyePosLoc != -1) {
+        glUniform3fv(eyePosLoc, 1, scene->camera.position.data());
+    }
+
+    int numLights = scene->lights.size();
+
     // Set number of lights
     GLint numLightsLoc = glGetUniformLocation(shaderProgram, "numLights");
     if (numLightsLoc != -1) {
         glUniform1i(numLightsLoc, numLights);
     }
     
+    // Get current modelview matrix from OpenGL state
+    GLfloat modelview[16];
+    glGetFloatv(GL_MODELVIEW_MATRIX, modelview);
+    // Convert to Eigen matrix (OpenGL uses column-major order)
+    Eigen::Matrix4d cameraTransform;
+    for (int i = 0; i < 4; i++) {
+        for (int j = 0; j < 4; j++) {
+            cameraTransform(i, j) = modelview[j * 4 + i];  // Transpose from column-major to row-major
+        }
+    }
+    
     // Set light positions, colors, and attenuations
-    // Assuming max 8 lights (common limit), you can adjust based on your shader
     for (size_t i = 0; i < numLights && i < 8; i++) {
         const auto& light = scene->lights[i];
         
-        // Light position
+        // Transform light position from world space to camera space
+        Eigen::Vector4d lightPosWorld(light.position.x(), light.position.y(), light.position.z(), 1.0);
+        Eigen::Vector4d lightPosCamera = cameraTransform * lightPosWorld;
+        Eigen::Vector3f lightPosCam(lightPosCamera.x(), lightPosCamera.y(), lightPosCamera.z());
+        
+        // Light position in camera space
         std::string posName = "lightPositions[" + std::to_string(i) + "]";
         GLint posLoc = glGetUniformLocation(shaderProgram, posName.c_str());
         if (posLoc != -1) {
-            glUniform3fv(posLoc, 1, light.position.data());
+            glUniform3fv(posLoc, 1, lightPosCam.data());
         }
         
         // Light color
@@ -133,38 +172,18 @@ void set_light_uniforms() {
 void draw_objects() {
     for (const auto& model : scene->objects) {
         glPushMatrix(); {
-            // Don't know why but openGL supposingly use post-multiplication for matrices,
-            // but doing this transpose generates the incorrect result?!
-            // Eigen::Matrix4d transposed_transform = model.transform.transpose();
             glMultMatrixd(model.transform.data());
-
-            // glLoadIdentity();
-            // Eigen::Matrix4d hardcoded_matrix;
-            // // hardcoded_matrix << 1.0, 0.0, 0.0, 0.4,
-            // //                     0.0, 1.0, 0.0, -0.9,
-            // //                     0.0, 0.0, 1.0, -4.0,
-            // //                     0.0, 0.0, 0.0, 1.0;
-            // hardcoded_matrix <<  1.0222 , -0.3592 , 0.7184 , 0.9330, 
-            //                   0.3592 , 1.2444 , 0.1111 , -0.8319,
-            //                   -0.7184 , 0.1111 , 1.0778 , -5.5361,
-            //                   0.0000 , 0.0000 , 0.0000 , 1.0000;
-            // // hardcoded_matrix <<  0.853588 ,  0.146412 , 0.499951 , 0,
-            // //                    0.146412 , 0.853588 , -0.499951 , 0,
-            // //                    -0.499951 , 0.499951 , 0.707176 , -5,
-            // //                    0 , 0 , 0 , 1;
-            // // hardcoded_matrix = hardcoded_matrix.transpose();
-            // glMultMatrixd(hardcoded_matrix.data());
             
             // Set material properties
-            glMaterialfv(GL_FRONT, GL_AMBIENT, model.ambient.data());
-            glMaterialfv(GL_FRONT, GL_DIFFUSE, model.diffuse.data());
-            glMaterialfv(GL_FRONT, GL_SPECULAR, model.specular.data());
-            glMaterialf(GL_FRONT, GL_SHININESS, model.shininess);
-            
-            // std::cout << "Model: " << model.name << std::endl;
-            // std::cout << "Model Transform Matrix (camera frame):" << std::endl;
-            // std::cout << scene->camera.get_transformation().inverse()*(model.transform) << std::endl;
-            // opengl_utils::print_model_matrices();
+            if (shader_mode == 1 && shaderProgram != 0) {
+                helpers::set_material_uniforms(model);  // Set material properties
+            } else {
+                // For default pipeline: use fixed-function
+                glMaterialfv(GL_FRONT, GL_AMBIENT, model.ambient.data());
+                glMaterialfv(GL_FRONT, GL_DIFFUSE, model.diffuse.data());
+                glMaterialfv(GL_FRONT, GL_SPECULAR, model.specular.data());
+                glMaterialf(GL_FRONT, GL_SHININESS, model.shininess);
+            }
             
             // Set vertex and normal pointers
             glVertexPointer(3, GL_FLOAT, sizeof(Eigen::Vector3f), model.obj_file->vertexes.data());
@@ -190,7 +209,7 @@ void draw_objects() {
 }
 
 
-static void readShaders() {
+void readShaders() {
     if (shadersLoaded) {
         return; // Already loaded
     }
@@ -320,7 +339,7 @@ void display(void) {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     
     // Load shaders if mode is 1 and not already loaded
-    if (shader_mode == 1 && !shadersLoaded) {
+    if (shader_mode == 1 && !helpers::shadersLoaded) {
         helpers::readShaders();
     }
     
@@ -328,20 +347,22 @@ void display(void) {
     helpers::camera_transform();
     
     // Use shader program if mode is 1, otherwise use default pipeline
-    if (shader_mode == 1 && shaderProgram != 0) {
-        glUseProgram(shaderProgram);
+    if (shader_mode == 1 && helpers::shaderProgram != 0) {
+        glUseProgram(helpers::shaderProgram);
+        helpers::set_light_uniforms(); // Pass lights to shader as uniforms
     } else {
         glUseProgram(0); // Use default pipeline
+        helpers::set_lights(); // Use fixed-function lighting
     }
     
     helpers::draw_objects();
     
-    // Use shader program if mode is 1, otherwise use default pipeline
-    if (shader_mode == 1 && shaderProgram != 0) {
-        helpers::set_light_uniforms(); // Pass lights to shader as uniforms
-    } else {
-        helpers::set_lights(); // Use fixed-function lighting
-    }
+    // // Use shader program if mode is 1, otherwise use default pipeline
+    // if (shader_mode == 1 && helpers::shaderProgram != 0) {
+    //     helpers::set_light_uniforms(); // Pass lights to shader as uniforms
+    // } else {
+    //     helpers::set_lights(); // Use fixed-function lighting
+    // }
 
     glutSwapBuffers();
 }

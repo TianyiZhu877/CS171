@@ -69,6 +69,7 @@ void start_scene_rendering(scene::SceneFile& scene) {
     glutReshapeFunc(opengl_handlers::window_resize);
     glutMouseFunc(opengl_handlers::mouse_pressed);
     glutMotionFunc(opengl_handlers::mouse_motion);
+    glutPostRedisplay();
     glutMainLoop();
 }
 

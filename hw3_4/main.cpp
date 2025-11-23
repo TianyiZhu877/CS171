@@ -4,7 +4,7 @@
 #include "opengl_utils.h"
 
 int main(int argc, char* argv[]) {
-    if (argc != 4 || argc != 5) {
+    if (argc != 4 && argc != 5) {
         std::cerr << "Usage: " << argv[0] << " [scene_description_file.txt] [xres] [yres] [mode]" << std::endl;
         return 1;
     }
