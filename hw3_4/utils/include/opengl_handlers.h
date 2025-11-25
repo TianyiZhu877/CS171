@@ -13,6 +13,8 @@ namespace opengl_handlers {
     // Global scene pointer, needs to be manually point to the scene object to be rendered
     extern scene::SceneFile* scene;
     extern int shader_mode;
+    extern std::string texture_png_path;
+    extern std::string normal_png_path;
     
     // Helper functions
     namespace helpers {
@@ -23,6 +25,7 @@ namespace opengl_handlers {
         void set_light_uniforms();
         void readShaders();
         void draw_objects();
+        GLuint get_shader_program();  // Getter for shader program
     }
     
     // Main GLUT callback functions:

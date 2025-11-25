@@ -12,6 +12,7 @@
 #include "include/scene.h"
 #include "include/models.h"
 #include "include/transformation.h"
+#include "include/part2_specific.h"
 
 // forward declaration
 namespace opengl_utils {
@@ -20,18 +21,21 @@ namespace opengl_utils {
 
 
 namespace opengl_handlers {
-    scene::SceneFile* scene;
-    int shader_mode = 0;
-    static Eigen::Vector4d last_rotation_quat = Eigen::Vector4d(0, 0, 0, 1);  // Identity quaternion (x,y,z,w)
-    static Eigen::Vector4d current_rotation_quat = Eigen::Vector4d(0, 0, 0, 1);  // Identity quaternion (x,y,z,w)
-    static int p_start_x, p_start_y;
-    static bool is_pressed = false;
+scene::SceneFile* scene;
+std::string texture_png_path;
+std::string normal_png_path;
+int shader_mode = 0;
+static Eigen::Vector4d last_rotation_quat = Eigen::Vector4d(0, 0, 0, 1);  // Identity quaternion (x,y,z,w)
+static Eigen::Vector4d current_rotation_quat = Eigen::Vector4d(0, 0, 0, 1);  // Identity quaternion (x,y,z,w)
+static int p_start_x, p_start_y;
+static bool is_pressed = false;
 
 
 namespace helpers {
 
 static const char* vertProgFileName = "../shaders/vertex.glsl";
 static const char* fragProgFileName = "../shaders/fragment.glsl";
+static const char* fragProgFileName_texture = "../shaders/fragment_texture.glsl";
 static GLuint shaderProgram = 0;
 static bool shadersLoaded = false;
 
@@ -170,45 +174,59 @@ void set_light_uniforms() {
 }
 
 void draw_objects() {
-    for (const auto& model : scene->objects) {
-        glPushMatrix(); {
-            glMultMatrixd(model.transform.data());
-            
-            // Set material properties
-            if (shader_mode == 1 && shaderProgram != 0) {
-                helpers::set_material_uniforms(model);  // Set material properties
-            } else {
-                // For default pipeline: use fixed-function
-                glMaterialfv(GL_FRONT, GL_AMBIENT, model.ambient.data());
-                glMaterialfv(GL_FRONT, GL_DIFFUSE, model.diffuse.data());
-                glMaterialfv(GL_FRONT, GL_SPECULAR, model.specular.data());
-                glMaterialf(GL_FRONT, GL_SHININESS, model.shininess);
+    if (shader_mode == 2) {
+        helpers::set_material_uniforms(scene->objects[0]);
+        part2::draw_surface();
+    } else {
+        // Set texCoord attribute to zero
+        if (shaderProgram != 0) {
+            GLint texCoordLoc = glGetAttribLocation(shaderProgram, "texCoord");
+            if (texCoordLoc != -1) {
+                glVertexAttrib2f(texCoordLoc, 0.0f, 0.0f);
             }
-            
-            // Set vertex and normal pointers
-            glVertexPointer(3, GL_FLOAT, sizeof(Eigen::Vector3f), model.obj_file->vertexes.data());
-            glNormalPointer(GL_FLOAT, sizeof(Eigen::Vector3f), model.obj_file->normals.data());
-            
-            // glDrawArrays(GL_TRIANGLES, 0, model.obj_file->vertexes.size());
-            // glDrawArrays(GL_LINE_STRIP, 0, model.obj_file->vertexes.size());
-            // glDrawElements(GL_TRIANGLES, 3, GL_UNSIGNED_INT, model.obj_file->faces_opengl.data());
-            
-            // Draw the model using the appropriate method
-            if (model.obj_file->drawElement_compatible) {
-            // If the vertexes and normal indices are the same for each face, DrawElements could be used
-                // std::cout << "Drawing model: " << model.name << " with DrawElements" << std::endl;
-                glDrawElements(GL_TRIANGLES, 3*model.obj_file->faces_opengl.size(), GL_UNSIGNED_INT, model.obj_file->faces_opengl.data());
-            } else {
-                // std::cout << "Drawing model: " << model.name << " with drawArrays" << std::endl;
-                glDrawArrays(GL_TRIANGLES, 0, model.obj_file->vertexes.size());
-            }
+        }
 
-            // std::cout << "Drawing model: " << model.name << std::endl;
-        } glPopMatrix();
+        for (const auto& model : scene->objects) {
+            glPushMatrix(); {
+                glMultMatrixd(model.transform.data());
+                
+                // Set material properties
+                if (shader_mode == 1 && shaderProgram != 0) {
+                    helpers::set_material_uniforms(model);  // Set material properties
+                } else {
+                    // For default pipeline: use fixed-function
+                    glMaterialfv(GL_FRONT, GL_AMBIENT, model.ambient.data());
+                    glMaterialfv(GL_FRONT, GL_DIFFUSE, model.diffuse.data());
+                    glMaterialfv(GL_FRONT, GL_SPECULAR, model.specular.data());
+                    glMaterialf(GL_FRONT, GL_SHININESS, model.shininess);
+                }
+                
+                // Set vertex and normal pointers
+                glVertexPointer(3, GL_FLOAT, sizeof(Eigen::Vector3f), model.obj_file->vertexes.data());
+                glNormalPointer(GL_FLOAT, sizeof(Eigen::Vector3f), model.obj_file->normals.data());
+                
+                // glDrawArrays(GL_TRIANGLES, 0, model.obj_file->vertexes.size());
+                // glDrawArrays(GL_LINE_STRIP, 0, model.obj_file->vertexes.size());
+                // glDrawElements(GL_TRIANGLES, 3, GL_UNSIGNED_INT, model.obj_file->faces_opengl.data());
+                
+                // Draw the model using the appropriate method
+                if (model.obj_file->drawElement_compatible) {
+                // If the vertexes and normal indices are the same for each face, DrawElements could be used
+                    // std::cout << "Drawing model: " << model.name << " with DrawElements" << std::endl;
+                    glDrawElements(GL_TRIANGLES, 3*model.obj_file->faces_opengl.size(), GL_UNSIGNED_INT, model.obj_file->faces_opengl.data());
+                } else {
+                    // std::cout << "Drawing model: " << model.name << " with drawArrays" << std::endl;
+                    glDrawArrays(GL_TRIANGLES, 0, model.obj_file->vertexes.size());
+                }
+
+                // std::cout << "Drawing model: " << model.name << std::endl;
+            } glPopMatrix();
+        }
     }
 }
 
 
+// shader program loaded in the beginning when opengl initializes
 void readShaders() {
     if (shadersLoaded) {
         return; // Already loaded
@@ -229,7 +247,7 @@ void readShaders() {
     vertProgFile.close();
     
     // Read fragment shader
-    std::ifstream fragProgFile(fragProgFileName);
+    std::ifstream fragProgFile((shader_mode == 2) ? fragProgFileName_texture : fragProgFileName);
     if (!fragProgFile.is_open()) {
         std::cerr << "Error opening fragment shader program: " << fragProgFileName << std::endl;
         return;
@@ -333,21 +351,29 @@ void readShaders() {
  }
 
 
+GLuint get_shader_program() {
+    return shaderProgram;
+}
+
 } // namespace helpers
 
 void display(void) {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     
     // Load shaders if mode is 1 and not already loaded
-    if (shader_mode == 1 && !helpers::shadersLoaded) {
+    if ((shader_mode == 1 || shader_mode == 2) && !helpers::shadersLoaded) {
         helpers::readShaders();
+        if (shader_mode == 2) {
+            if (!part2::load_textures(texture_png_path.c_str(), normal_png_path.c_str())) 
+                std::cerr << "Error loading textures/normal png" << std::endl;
+        }
     }
     
     glMatrixMode(GL_MODELVIEW);
     helpers::camera_transform();
     
     // Use shader program if mode is 1, otherwise use default pipeline
-    if (shader_mode == 1 && helpers::shaderProgram != 0) {
+    if ((shader_mode == 1 || shader_mode == 2) && helpers::shaderProgram != 0) {
         glUseProgram(helpers::shaderProgram);
         helpers::set_light_uniforms(); // Pass lights to shader as uniforms
     } else {

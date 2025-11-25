@@ -16,13 +16,14 @@ include_directories(SYSTEM ${CMAKE_SOURCE_DIR})
 find_package(OpenGL REQUIRED)
 find_package(GLEW REQUIRED)
 find_package(GLUT REQUIRED)
+find_package(PNG REQUIRED)
 
 # Gather all .cpp files from utils directory
 file(GLOB UTILS_SOURCES "utils/*.cpp")
 
 # Main executable target
 add_executable(opengl_renderer  main.cpp ${UTILS_SOURCES})
-target_link_libraries(opengl_renderer ${OPENGL_LIBRARIES} GLEW::GLEW GLUT::GLUT m)
+target_link_libraries(opengl_renderer ${OPENGL_LIBRARIES} GLEW::GLEW GLUT::GLUT PNG::PNG m)
 
 # Demo executable target
 add_executable(opengl_demo demo/opengl_demo.cpp)
