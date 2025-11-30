@@ -1,8 +1,8 @@
-#include "models.h"
 #include <fstream>
 #include <sstream>
 #include <iostream>
 #include <Eigen/Dense>
+#include "models.h"
 
 
 namespace models {
@@ -82,15 +82,18 @@ bool ObjModel::load_from_obj_file(const std::string& filename) {
                     }
                 }
                 if (valid_face) {
-                    faces.emplace_back(std::move(new_face));
 
                     if (drawElement_compatible) {
                         FaceOpenGL new_face_opengl{static_cast<GLuint>(new_face[0]), static_cast<GLuint>(new_face[1]), static_cast<GLuint>(new_face[2])};
                         faces_opengl.emplace_back(std::move(new_face_opengl));
                     }
+                    
+                    faces.emplace_back(std::move(new_face));
                 }
             }
         }
+        
+        // std::cout << "number of faces: " << faces.size() << std::endl;
         // Lines not starting with 'v' or 'f' followed by space are ignored
     }
 

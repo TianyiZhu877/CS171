@@ -143,6 +143,8 @@ struct HEF // HEF for halfedge face
 {
     // the halfedge associated with this face
     struct HE *edge;
+    Vec3f normal;
+    float area;
     // this variable is used to help orientate the halfedge when building it;
     // you don't have to worry about this
     bool oriented;
@@ -295,8 +297,8 @@ static bool build_HE(Mesh_Data *mesh,
                      std::vector<HEV*> *hevs,
                      std::vector<HEF*> *hefs)
 {
-    std::vector<Vertex*> *vertices = mesh->vertices;
-    std::vector<Face*> *faces = mesh->faces;
+    std::vector<Vertex*> *vertices = &(mesh->vertices);
+    std::vector<Face*> *faces = &(mesh->faces);
 
     hevs->push_back(NULL);
     std::map<std::pair<int, int>, HE*> edge_hash;
@@ -382,8 +384,9 @@ static void delete_HE(std::vector<HEV*> *hevs, std::vector<HEF*> *hefs)
         delete hefs->at(i);
     }
 
-    delete hevs;
-    delete hefs;
+    // this is pointer to class member, should not be delete them!!!
+    // delete hevs;
+    // delete hefs;
 }
 
 }

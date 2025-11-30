@@ -12,6 +12,10 @@
 #include <GL/glew.h>
 #include <Eigen/Dense>
 
+#include "halfedge_structs.h"
+#include "halfedge.h"
+#include "halfedge_utils.h"
+
 // These model classes are only containers providing data storage, io and type conversions, transformation logic should be implemented elsewhere
 namespace models{
 
@@ -98,8 +102,78 @@ struct Model {
     Eigen::Vector3f specular;
     float shininess;
 
-    Model(const std::shared_ptr<ObjModel>& init_obj, Eigen::Matrix4d init_transform = Eigen::Matrix4d::Identity(), std::string model_name = ""): 
-    obj_file(init_obj), name(model_name), transform(init_transform) { }
+    std::vector<halfedge::HEV*> halfedges_vertices;
+    std::vector<halfedge::HEF*> halfedges_faces;
+
+    halfedge::Face* raw_faces;
+    halfedge::Vertex* vertices_cached;
+    halfedge::Vec3f* normals_cached;
+    int num_vertices;
+    int num_faces;
+    
+
+    Model(const std::shared_ptr<ObjModel>& init_obj, Eigen::Matrix4d init_transform = Eigen::Matrix4d::Identity(), std::string model_name = "", bool setup_halfedges = true): 
+    obj_file(init_obj), name(model_name), transform(init_transform), raw_faces(nullptr), vertices_cached(nullptr), normals_cached(nullptr), num_vertices(0), num_faces(0) { 
+        // if (obj_file == nullptr) {
+        //     std::cerr << "Error: obj_file is nullptr" << std::endl;
+        //     // return;
+        // }
+    }
+
+    void setup_halfedges() {
+        if (obj_file == nullptr) {
+            std::cerr << "Error: obj_file is nullptr" << std::endl;
+            return;
+        }
+
+        num_vertices = obj_file->vertexes.size()+1;
+        num_faces = obj_file->faces.size();
+        raw_faces = new halfedge::Face[num_faces];
+        vertices_cached = new halfedge::Vertex[num_vertices];
+        normals_cached = new halfedge::Vec3f[num_vertices];
+
+        halfedge::Mesh_Data mesh_data;
+        mesh_data.vertices.reserve(num_vertices);
+        mesh_data.faces.reserve(num_faces);
+        
+        mesh_data.vertices.push_back(NULL);
+        for (int i = 1; i < num_vertices; i++) {
+            vertices_cached[i] = halfedge::Vertex{obj_file->vertexes[i-1].x(), obj_file->vertexes[i-1].y(), obj_file->vertexes[i-1].z()};
+            mesh_data.vertices.push_back(vertices_cached+i);
+        }
+        for (int i = 0; i < num_faces; i++) {
+            raw_faces[i] = halfedge::Face{obj_file->faces[i][0]+1, obj_file->faces[i][1]+1, obj_file->faces[i][2]+1};
+            mesh_data.faces.push_back(raw_faces+i);
+        }
+        halfedge::build_HE(&mesh_data, &halfedges_vertices, &halfedges_faces);
+        // delete[] vertices_cached;
+        compute_halfedge_vertex_normals();
+        // print_vertexes_normals_to_draw();
+    }
+
+    void compute_halfedge_vertex_normals() {
+        using namespace halfedge;
+        for (HEF *face : halfedges_faces) {
+            compute_face_normal_area(face);
+        }
+
+        for (size_t i = 1; i < halfedges_vertices.size(); i++) {
+            HEV *vertex = halfedges_vertices[i];
+            if (vertex) {
+                compute_vertex_normal(vertex);
+                normals_cached[i] = vertex->normal;
+                vertices_cached[i] = Vertex{static_cast<float>(vertex->x), static_cast<float>(vertex->y), static_cast<float>(vertex->z)};
+            }
+        }
+    }
+
+    ~Model() {
+        std::cout << "deleting" << name << " " << halfedges_vertices.size() << " " << halfedges_faces.size() << std::endl;
+        halfedge::delete_HE(&halfedges_vertices, &halfedges_faces);
+        delete[] normals_cached;
+        delete[] raw_faces;
+        delete[] vertices_cached;
+    }
 
     // get faces from the obj file
     ObjModel::FaceList& faces() {
@@ -145,6 +219,23 @@ struct Model {
             return true;
         }
         return false;
+    }
+
+    void print_vertexes_normals_to_draw() {
+        for (int i = 0; i < num_faces; i++) {
+            std::cout << "face " << i << ": " << raw_faces[i].idx1 << " " << raw_faces[i].idx2 << " " << raw_faces[i].idx3 << std::endl;
+            std::cout << "vertex " << raw_faces[i].idx1 << ": " << vertices_cached[raw_faces[i].idx1].x << " " << vertices_cached[raw_faces[i].idx1].y << " " << vertices_cached[raw_faces[i].idx1].z << std::endl;
+            std::cout << "vertex " << raw_faces[i].idx2 << ": " << vertices_cached[raw_faces[i].idx2].x << " " << vertices_cached[raw_faces[i].idx2].y << " " << vertices_cached[raw_faces[i].idx2].z << std::endl;
+            std::cout << "vertex " << raw_faces[i].idx3 << ": " << vertices_cached[raw_faces[i].idx3].x << " " << vertices_cached[raw_faces[i].idx3].y << " " << vertices_cached[raw_faces[i].idx3].z << std::endl;
+            std::cout << "normal " << raw_faces[i].idx1 << ": " << normals_cached[raw_faces[i].idx1].x << " " << normals_cached[raw_faces[i].idx1].y << " " << normals_cached[raw_faces[i].idx1].z << std::endl;
+            std::cout << "normal " << raw_faces[i].idx2 << ": " << normals_cached[raw_faces[i].idx2].x << " " << normals_cached[raw_faces[i].idx2].y << " " << normals_cached[raw_faces[i].idx2].z << std::endl;
+            std::cout << "normal " << raw_faces[i].idx3 << ": " << normals_cached[raw_faces[i].idx3].x << " " << normals_cached[raw_faces[i].idx3].y << " " << normals_cached[raw_faces[i].idx3].z << std::endl;
+            std::cout << "vertex from obj file " << static_cast<int>(obj_file->faces_opengl[i][0]) << std::endl;
+            //  << ": " << obj_file->vertexes[obj_file->faces_opengl[i][0]].x << " " << obj_file->vertexes[obj_file->faces_opengl[i][0]].y << " " << obj_file->vertexes[obj_file->faces_opengl[i][0]].z << std::endl;
+            // std::cout << "vertex from obj file " << obj_file->faces_opengl[i][1] << ": " << obj_file->vertexes[obj_file->faces_opengl[i][1]].x << " " << obj_file->vertexes[obj_file->faces_opengl[i][1]].y << " " << obj_file->vertexes[obj_file->faces_opengl[i][1]].z << std::endl;
+            // std::cout << "vertex from obj file " << obj_file->faces_opengl[i][2] << ": " << obj_file->vertexes[obj_file->faces_opengl[i][2]].x << " " << obj_file->vertexes[obj_file->faces_opengl[i][2]].y << " " << obj_file->vertexes[obj_file->faces_opengl[i][2]].z << std::endl;
+            std::cout << "--------------------------------" << std::endl;
+        }
     }
 };
 

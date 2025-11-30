@@ -8,7 +8,6 @@ int main(int argc, char* argv[]) {
         std::cerr << "Usage: " << argv[0] << " [scene_description_file.txt] [xres] [yres]" << std::endl;
         return 1;
     }
-
     std::string scene_filename = argv[1];
     
     // Create and load the scene
@@ -20,4 +19,3 @@ int main(int argc, char* argv[]) {
     
     return 0;
 }
-

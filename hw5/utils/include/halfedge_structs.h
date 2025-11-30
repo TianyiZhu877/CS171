@@ -17,13 +17,13 @@ struct Vertex
 
 struct Face
 {
-    int idx1, idx2, idx3;
+    size_t idx1, idx2, idx3;
 };
 
 struct Mesh_Data
 {
-    std::vector<Vertex*> *vertices;
-    std::vector<Face*> *faces;
+    std::vector<Vertex*> vertices;
+    std::vector<Face*> faces;
 };
 
 }

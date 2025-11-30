@@ -21,16 +21,11 @@ find_package(GLUT REQUIRED)
 file(GLOB UTILS_SOURCES "utils/*.cpp")
 
 # Main executable target
-add_executable(opengl_renderer  main.cpp ${UTILS_SOURCES})
-target_link_libraries(opengl_renderer ${OPENGL_LIBRARIES} GLEW::GLEW GLUT::GLUT m)
-
-# Demo executable target
-add_executable(opengl_demo demo/opengl_demo.cpp)
-target_link_libraries(opengl_demo ${OPENGL_LIBRARIES} GLEW::GLEW GLUT::GLUT m)
+add_executable(smooth  main.cpp ${UTILS_SOURCES})
+target_link_libraries(smooth ${OPENGL_LIBRARIES} GLEW::GLEW GLUT::GLUT m)
 
 # Create custom targets for make commands
-add_custom_target(main_target DEPENDS opengl_renderer)
-add_custom_target(demo_target DEPENDS opengl_demo)
+add_custom_target(main_target DEPENDS smooth)
 
 # Set default target to main
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY DEFAULT_TARGET main_target)

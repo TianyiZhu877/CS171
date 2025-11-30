@@ -26,6 +26,9 @@ inline Eigen::Matrix4d parse_transformation_line(std::istringstream& line, std::
 
     if (prefix == "r") {
         line >> angle;
+        if (angle < 1e-6 && angle > -1e-6) 
+            return Eigen::Matrix4d::Identity();
+        
         return ::transformation::matrix_from_rotation_vector(x, y, z, angle);
     }
 
@@ -286,6 +289,7 @@ private:
         std::string new_label = label+"_copy"+std::to_string(count);
         current_model.obj_file = it->second.first;
         current_model.name = new_label;
+        current_model.setup_halfedges();
         // std::cout << "new_object.transform: " << new_object.transform << std::endl;
         // std::cout << "current transform: " << current_transform << std::endl;
         // new_object.points = current_transform * new_object.points;;
