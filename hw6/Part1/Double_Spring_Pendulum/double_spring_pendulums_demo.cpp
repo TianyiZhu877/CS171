@@ -239,28 +239,18 @@ void update_pendulums()
      *     g
      * 
      */
+    float r1 = sqrt(m1.x*m1.x + m1.y*m1.y);
+    float r2 = sqrt((m2.x - m1.x)*(m2.x - m1.x) + (m2.y - m1.y)*(m2.y - m1.y));
 
-    
+    m1.px -= (m1.k * m1.x * (r1 - m1.rl) / r1 - m2.k * (m2.x - m1.x) * (r2 - m2.rl) / r2) * dt;
+    m1.py -= (m1.k * m1.y * (r1 - m1.rl) / r1 - m2.k * (m2.y - m1.y) * (r2 - m2.rl) / r2 - m1.m * g) * dt;
+    m2.px -= m2.k * (m2.x - m1.x) * (r2 - m2.rl) / r2 * dt;
+    m2.py -= (m2.k * (m2.y - m1.y) * (r2 - m2.rl) / r2 - m2.m * g) * dt;
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    
+    m1.x += m1.px / m1.m * dt;
+    m1.y += m1.py / m1.m * dt;
+    m2.x += m2.px / m2.m * dt;
+    m2.y += m2.py / m2.m * dt;
 
     /****************************** END TODO ****************************/
 
