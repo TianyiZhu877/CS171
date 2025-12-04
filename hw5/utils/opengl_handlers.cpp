@@ -91,7 +91,7 @@ void draw_objects() {
             // glVertexPointer(3, GL_FLOAT, sizeof(Eigen::Vector3f), model.obj_file->vertexes.data());
             // glDrawElements(GL_TRIANGLES, 3*model.obj_file->faces_opengl.size(), GL_UNSIGNED_INT, model.obj_file->faces_opengl.data());
             
-            if (!model.halfedges_vertices.empty() && model.vertices_cached && model.normals_cached && model.raw_faces) {
+            if (!model.halfedges_vertices.empty() && model.vertices_cached) {
 
                 // std::cout << "drawing" << std::endl;
                 
@@ -142,6 +142,19 @@ void mouse_pressed(int button, int state, int x, int y) {
     }
 }
 
+void key_pressed(unsigned char key, int x, int y) {
+    if(key == 'q') {
+        exit(0);
+    } else if(key == 'd') {
+        scene->double_h();glutPostRedisplay(); 
+    } else if (key == 'c') {
+        scene->half_h();
+        glutPostRedisplay(); 
+    } else if (key == 'r') {
+        scene->reset_h();
+        glutPostRedisplay(); 
+    }
+}
 
 void mouse_motion(int x, int y) {
     if (is_pressed) {

@@ -11,6 +11,7 @@
 #include <optional>
 #include <GL/glew.h>
 #include <Eigen/Dense>
+#include <Eigen/Sparse>
 
 #include "halfedge_structs.h"
 #include "halfedge.h"
@@ -105,7 +106,9 @@ struct Model {
     std::vector<halfedge::HEV*> halfedges_vertices;
     std::vector<halfedge::HEF*> halfedges_faces;
 
+    // face indices, used for building half edges, one off from obj->opengl_faces
     halfedge::Face* raw_faces;
+    // direct buffer area for extraction by opengl
     halfedge::Vertex* vertices_cached;
     halfedge::Vec3f* normals_cached;
     int num_vertices;
@@ -146,19 +149,32 @@ struct Model {
             mesh_data.faces.push_back(raw_faces+i);
         }
         halfedge::build_HE(&mesh_data, &halfedges_vertices, &halfedges_faces);
+        
+        for (size_t i = 1; i < halfedges_vertices.size(); i++) {
+            halfedge::HEV *vertex = halfedges_vertices[i];
+            if (vertex) vertex->index = i;   
+        }
+
         // delete[] vertices_cached;
-        compute_halfedge_vertex_normals();
+        compute_halfedge_vertex_normals_and_fill_buffers();
         // print_vertexes_normals_to_draw();
     }
 
-    void compute_halfedge_vertex_normals() {
+    void compute_faces_normals_areas() {
         using namespace halfedge;
         for (HEF *face : halfedges_faces) {
             compute_face_normal_area(face);
         }
+    }
+
+    // would also fill the normals_cached and vertices_cached, making them available for gl rendering
+    void compute_halfedge_vertex_normals_and_fill_buffers() {
+        using namespace halfedge;
+
+        compute_faces_normals_areas();
 
         for (size_t i = 1; i < halfedges_vertices.size(); i++) {
-            HEV *vertex = halfedges_vertices[i];
+            halfedge::HEV *vertex = halfedges_vertices[i];
             if (vertex) {
                 compute_vertex_normal(vertex);
                 normals_cached[i] = vertex->normal;
@@ -166,6 +182,93 @@ struct Model {
             }
         }
     }
+
+    void reset_halfedges_vertices() {
+        for (size_t i = 1; i < halfedges_vertices.size(); i++) {
+            halfedge::HEV *vertex = halfedges_vertices[i];
+            if (vertex) {
+                vertex->x = obj_file->vertexes[i-1].x();
+                vertex->y = obj_file->vertexes[i-1].y();
+                vertex->z = obj_file->vertexes[i-1].z();
+            }   
+        }
+    }
+
+    // assuming the face areas are already computed
+    Eigen::SparseMatrix<double> build_F_operator(float h) {    
+        // recall that due to 1-indexing of obj files, index 0 of our list doesnt actually contain a vertex
+        int matrix_n = num_vertices - 1;
+    
+        Eigen::SparseMatrix<double> F( matrix_n, matrix_n );
+        F.reserve( Eigen::VectorXi::Constant( matrix_n, 8 ) );
+    
+        for( int i = 1; i < num_vertices; ++i ) {
+            // compute total area
+            halfedge::HE *he = halfedges_vertices[i]->out;
+            double total_area = 0;
+            do {
+                total_area += static_cast<double>(he->face->area);
+                he = he->flip->next;
+            } while( he != halfedges_vertices[i]->out );
+
+            // if the total area is too small, we skip this vertex
+            if (total_area >= 1e-6) {
+                halfedge::HE *he = halfedges_vertices[i]->out;
+                double sum_value = 0;
+                do {
+                    int j = he->next->vertex->index; // get index of adjacent vertex to v_i
+                    double cot_alpha = halfedge::cot(he);
+                    double cot_beta = halfedge::cot(he->flip);
+                    double value = h * (cot_alpha + cot_beta) / total_area;
+                    F.insert( i-1, j-1 ) = -value;
+                    sum_value += value;
+                    he = he->flip->next;
+                } while( he != halfedges_vertices[i]->out );
+                F.insert( i-1, i-1 ) = 1 + sum_value;
+            } else {
+                F.insert( i-1, i-1 ) = 1;
+            }
+        }
+    
+        F.makeCompressed(); // optional; tells Eigen to more efficiently store our sparse matrix
+        return F;
+    }
+
+    // function to solve Equation 4
+    void recompute_fairing(float h) {
+        reset_halfedges_vertices();
+
+        compute_faces_normals_areas();
+        // get our matrix representation of B
+        Eigen::SparseMatrix<double> F = build_F_operator(h);
+
+        // initialize Eigens sparse solver
+        Eigen::SparseLU<Eigen::SparseMatrix<double>, Eigen::COLAMDOrdering<int> > solver;
+
+        // the following two lines essentially tailor our solver to our operator B
+        solver.analyzePattern( F );
+        solver.factorize( F );
+
+        // Process x, y, z coordinates
+        double halfedge::HEV::* coord_members[] = {&halfedge::HEV::x, &halfedge::HEV::y, &halfedge::HEV::z};
+        float halfedge::Vertex::* cached_coord_members[] = {&halfedge::Vertex::x, &halfedge::Vertex::y, &halfedge::Vertex::z};
+        
+        for (int coord = 0; coord < 3; coord++) {
+            Eigen::VectorXd rho_vector(num_vertices-1);
+            for(int i = 1; i < num_vertices; ++i )
+                rho_vector(i-1) = halfedges_vertices[i]->*coord_members[coord]; 
+
+            Eigen::VectorXd phi_vector(num_vertices-1);
+            phi_vector = solver.solve(rho_vector);
+
+            for(int i = 1; i < num_vertices; ++i ) {
+                halfedges_vertices[i]->*coord_members[coord] = phi_vector(i - 1);
+            }
+        }
+
+        compute_halfedge_vertex_normals_and_fill_buffers();
+    }
+
 
     ~Model() {
         std::cout << "deleting" << name << " " << halfedges_vertices.size() << " " << halfedges_faces.size() << std::endl;
@@ -238,7 +341,6 @@ struct Model {
         }
     }
 };
-
 
 } // namespace models
 

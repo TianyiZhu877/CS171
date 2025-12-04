@@ -23,6 +23,7 @@ namespace opengl_handlers {
     void window_resize(int width, int height);
     void mouse_pressed(int button, int state, int x, int y);
     void mouse_motion(int x, int y);
+    void key_pressed(unsigned char key, int x, int y);
 }
 
 #endif // OPENGL_HANDLERS_H

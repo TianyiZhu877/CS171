@@ -143,6 +143,8 @@ struct Camera {
 // Stroing all objects in the scene, and provide interface to organize and render the scene
 class SceneFile {
 public:
+    constexpr static float MAX_H_MULTIPLIER = 1024.0;
+
     enum States {
         CAMERA,
         FILES_FIRST_LINE,
@@ -160,7 +162,7 @@ public:
     };
 
     // Read the scene file and parse the camera and object information, parse the transformation matrix for each object
-    SceneFile(const std::string& path): current_model(nullptr) {
+    SceneFile(const std::string& path, float h = 0.0001): current_model(nullptr), h(h), original_h(h) {
         state = States::CAMERA;
         // current_label = "NONE";
         // current_transform = Eigen::Matrix4d::Identity();
@@ -243,6 +245,38 @@ public:
     //         object.points = camera.get_transformation().inverse() * object.points;
     //     }
     // }
+    void double_h() {
+        float previous_h = h;
+        h *= 2.0;
+        if (h < (original_h * MAX_H_MULTIPLIER)) {
+            std::cout << "new h doubled: " << h << std::endl;
+            recompute_fairing();
+        } else {
+            h = previous_h;
+        }
+    }
+
+    void half_h() {
+        float previous_h = h;
+        h /= 2.0;
+        if (h > (original_h / MAX_H_MULTIPLIER)) {
+            std::cout << "new h halved: " << h << std::endl;
+            recompute_fairing();
+        }  else {
+            h = previous_h;
+        }
+    }
+
+    void reset_h() {
+        h = original_h;
+        recompute_fairing();
+    }
+
+    void recompute_fairing() {
+        for (auto& object : objects) {
+            object.recompute_fairing(h);
+        }
+    }
 
     Camera camera;
     std::vector<models::Model> objects;
@@ -250,6 +284,8 @@ public:
     std::vector<PointLight> lights;
 
 private:
+    float h;
+    float original_h;
     States state;
     std::unordered_map<std::string, std::pair<std::shared_ptr<models::ObjModel>, int>> object_files;
     // std::string current_label;
