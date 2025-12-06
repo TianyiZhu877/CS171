@@ -8,6 +8,9 @@
  */
 
 /* Needed to draw the cylinders using glu */
+#include <GL/glut.h>
+#include <GL/glut.h>
+
 GLUquadricObj *quadratic;
 
 void init()

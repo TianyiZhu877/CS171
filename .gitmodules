@@ -13,3 +13,6 @@
 [submodule "hw5/Eigen"]
 	path = hw5/Eigen
 	url = https://github.com/TianyiZhu877/CS171_Eigen
+[submodule "hw6/Part2/Eigen"]
+	path = hw6/Part2/Eigen
+	url = https://github.com/TianyiZhu877/CS171_Eigen

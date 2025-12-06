@@ -1,0 +1,17 @@
+# Exclude Windows executables
+*.exe
+
+# Exclude executables without extensions (Unix/Linux executables)
+*
+!*/
+!*.*
+!README*
+!LICENSE*
+!CHANGELOG*
+!AUTHORS*
+!CONTRIBUTORS*
+!.gitignore
+!.gitattributes
+!Eigen
+Part2/Bunny_Frames/interpolate_results/
+*/build/
