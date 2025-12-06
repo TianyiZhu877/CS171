@@ -13,13 +13,6 @@
 
 GLUquadricObj *quadratic;
 
-void init()
-{
-    // ... other code
-    quadratic = gluNewQuadric();
-    // ... other code
-}
-
 void drawIBar()
 {
     /* Parameters for drawing the cylinders */

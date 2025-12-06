@@ -22,6 +22,7 @@ file(GLOB UTILS_SOURCES "utils/*.cpp")
 
 # i_bar executable target
 add_executable(i_bar i_bar.cpp ${UTILS_SOURCES})
+target_compile_options(i_bar PRIVATE -g -O0)  
 target_link_libraries(i_bar ${OPENGL_LIBRARIES} GLEW::GLEW GLUT::GLUT m)
 
 # bunny_frames executable target
