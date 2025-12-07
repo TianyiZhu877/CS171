@@ -363,17 +363,10 @@ void display(void)
          * HINT: this is not that hard; you might even see this as a trick question...
          */
 
-
-
-
-
-
-
-
-
-
-
-
+         vertices[i].vx += tstep / vertices[i].mass * vertices[i].fx;
+         vertices[i].x += tstep * vertices[i].vx;
+         vertices[i].vy += tstep / vertices[i].mass * vertices[i].fy;
+         vertices[i].y += tstep * vertices[i].vy;
          
 
         /****************************** END TODO ****************************/

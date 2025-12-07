@@ -16,3 +16,6 @@
 [submodule "hw6/Part2/Eigen"]
 	path = hw6/Part2/Eigen
 	url = https://github.com/TianyiZhu877/CS171_Eigen
+[submodule "hw6/Part1/Eigen"]
+	path = hw6/Part1/Eigen
+	url = https://github.com/TianyiZhu877/CS171_Eigen
